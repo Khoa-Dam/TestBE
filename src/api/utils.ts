@@ -11,10 +11,10 @@ export function parseBuildTxResponse(buildTxResponse: any) {
     const args = parsed.payload.functionArguments;
 
     // Fields that need to be converted to BigInt (by position in admin_configure_all)
-    const bigIntFields = [1, 2, 4, 5, 8, 9, 10, 11, 13];
+    const bigIntFields = [1, 2, 4, 5, 9, 10, 11, 13];
 
     // Fields that are timestamps (require special handling)
-    const timestampFields = [8, 9, 10]; // presaleStart, publicStart, saleEnd
+    const timestampFields = [9, 10, 11]; // presaleStart, publicStart, saleEnd
 
     console.log("🔄 Converting numeric fields to u64 BigInt...");
 
@@ -31,22 +31,13 @@ export function parseBuildTxResponse(buildTxResponse: any) {
         bigIntFields.includes(index) &&
         (typeof arg === "number" || typeof arg === "string")
       ) {
-        // Special case for timestamps - ensure they're in the future if they're timestamps
+        // Convert timestamps to string without modification
         if (isConfigureAll && timestampFields.includes(index)) {
-          const currentTime = Math.floor(Date.now() / 1000);
           const argValue = Number(arg);
           console.log(
-            `   Timestamp field ${index}: ${argValue}, Current time: ${currentTime}`
+            `   Timestamp field ${index}: ${argValue} (using as-is from database)`
           );
-
-          // If timestamp is in the past, add time to make it future
-          if (argValue < currentTime) {
-            console.log(`   ⚠️ Timestamp in the past, adjusting...`);
-            // Add 1 hour to current time to ensure it's in the future
-            const adjustedTime = currentTime + 3600;
-            console.log(`   Adjusted to: ${adjustedTime}`);
-            return adjustedTime.toString();
-          }
+          return argValue.toString();
         }
 
         // Convert to BigInt for validation, but send as string for compatibility

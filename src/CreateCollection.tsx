@@ -22,6 +22,10 @@ export default function CreateCollection({
     presaleStart: "",
     publicStart: "",
     saleEnd: "",
+    // Phase Management
+    setPhaseManual: false, // Disable manual phase control by default
+    phaseManual: "0", // PHASE_CLOSED by default
+    freezeAfter: false, // Don't freeze by default
   });
 
   const [files, setFiles] = useState({
@@ -35,12 +39,30 @@ export default function CreateCollection({
   const [allowlist, setAllowlist] = useState([""]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+    const { name, value, type } = e.target;
+    const newValue =
+      type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
+
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: newValue };
+
+      // Auto-configure when setPhaseManual is enabled
+      if (name === "setPhaseManual" && newValue === true) {
+        updated.phaseManual = "2"; // Set to PUBLIC sale
+        updated.freezeAfter = true; // Enable freeze to respect timestamps
+      }
+      // Reset when setPhaseManual is disabled
+      else if (name === "setPhaseManual" && newValue === false) {
+        updated.phaseManual = "0"; // Reset to CLOSED
+        updated.freezeAfter = false; // Disable freeze
+      }
+
+      return updated;
+    });
   };
 
   const handleFileChange = (
@@ -92,6 +114,12 @@ export default function CreateCollection({
     setLoading(true);
 
     try {
+      console.log("📋 FormData before submission:");
+      console.log("🔧 Form Data Object:", formData);
+      console.log("📁 Files:", files);
+      console.log("💰 Splits:", splits);
+      console.log("📜 Allowlist:", allowlist);
+
       const submitData = new FormData();
 
       // Required fields
@@ -150,6 +178,28 @@ export default function CreateCollection({
         submitData.append("allowlist", JSON.stringify(validAllowlist));
       }
 
+      // Phase Management
+      submitData.append("setPhaseManual", formData.setPhaseManual.toString());
+      submitData.append("phaseManual", formData.phaseManual);
+      submitData.append("freezeAfter", formData.freezeAfter.toString());
+
+      console.log("🎛️ Phase Management values being sent:");
+      console.log(
+        `   setPhaseManual: ${
+          formData.setPhaseManual
+        } (${typeof formData.setPhaseManual})`
+      );
+      console.log(
+        `   phaseManual: ${
+          formData.phaseManual
+        } (${typeof formData.phaseManual})`
+      );
+      console.log(
+        `   freezeAfter: ${
+          formData.freezeAfter
+        } (${typeof formData.freezeAfter})`
+      );
+
       // Files
       if (files.banner) {
         submitData.append("banner", files.banner);
@@ -163,6 +213,17 @@ export default function CreateCollection({
         submitData.append("manifest", files.manifest);
       }
 
+      // Log FormData contents before sending
+      console.log("📤 Complete FormData being sent to backend:");
+      for (const [key, value] of submitData.entries()) {
+        if (value instanceof File) {
+          console.log(`   ${key}: [File] ${value.name} (${value.size} bytes)`);
+        } else {
+          console.log(`   ${key}: ${value}`);
+        }
+      }
+
+      console.log("🚀 Calling createCompleteDraft API...");
       const draft = await createCompleteDraft(submitData);
       onDraftCreated(draft);
     } catch (error) {
@@ -299,6 +360,59 @@ export default function CreateCollection({
                 onChange={handleInputChange}
               />
             </label>
+          </div>
+        </section>
+
+        {/* Phase Management */}
+        <section
+          style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
+        >
+          <h3>🎛️ Phase Management</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                name="setPhaseManual"
+                checked={formData.setPhaseManual}
+                onChange={handleInputChange}
+              />
+              Set Phase Manually (Override schedule-based phase)
+            </label>
+
+            {formData.setPhaseManual && (
+              <label>
+                Manual Phase:
+                <select
+                  name="phaseManual"
+                  value={formData.phaseManual}
+                  onChange={handleInputChange}
+                  style={{ padding: 8, marginLeft: 8 }}
+                >
+                  <option value="0">🔒 Closed</option>
+                  <option value="1">🎯 Presale</option>
+                  <option value="2">🌍 Public Sale</option>
+                </select>
+              </label>
+            )}
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                name="freezeAfter"
+                checked={formData.freezeAfter}
+                onChange={handleInputChange}
+              />
+              Freeze Schedule After Configuration (Use time-based phases)
+            </label>
+
+            <small style={{ color: "#666", fontSize: "0.9em" }}>
+              💡 <strong>Tip:</strong>
+              <br />• <strong>Set Phase Manually</strong>: Force specific phase
+              regardless of time
+              <br />• <strong>Freeze Schedule</strong>: Lock configuration and
+              use automatic time-based phases
+              <br />• If both unchecked: Phase stays manually controllable
+            </small>
           </div>
         </section>
 

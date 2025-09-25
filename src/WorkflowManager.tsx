@@ -312,6 +312,7 @@ export default function WorkflowManager({
       }
 
       addLog("⚙️ Configuring collection settings...");
+      addLog("📋 Using phase config from draft creation");
       const txHash = await workflow.configure(account.address, signAndSubmit);
       addLog(`✅ Configuration successful! TX: ${txHash}`);
 
@@ -642,6 +643,7 @@ export default function WorkflowManager({
         <div style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
           <h3>{getStepStatus("configure")} Step 4: Configure</h3>
           <p>Set pricing, schedule, and splits</p>
+
           <button
             onClick={handleConfigure}
             disabled={loading || !canExecuteStep("configure")}

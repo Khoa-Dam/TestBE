@@ -70,12 +70,12 @@ export class NFTCollectionWorkflow {
         );
 
         // Kiểm tra lỗi E_SALE_CLOSED
-        if (saleEnd <= now) {
-          console.error("❌ Lỗi E_SALE_CLOSED: Thời gian kết thúc sale đã qua");
-          throw new Error(
-            "Thời gian kết thúc sale đã qua. Vui lòng điều chỉnh thời gian để sale kết thúc trong tương lai."
-          );
-        }
+        // if (saleEnd <= now) {
+        //   console.error("❌ Lỗi E_SALE_CLOSED: Thời gian kết thúc sale đã qua");
+        //   throw new Error(
+        //     "Thời gian kết thúc sale đã qua. Vui lòng điều chỉnh thời gian để sale kết thúc trong tương lai."
+        //   );
+        // }
       }
 
       // Verify admin address format

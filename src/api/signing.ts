@@ -71,6 +71,18 @@ export async function configureAllOneBuild(id: string, adminAddr?: string) {
   } else {
     console.log("✅ Using config from draft:", draft.config);
 
+    // Check phase configuration from draft
+    if (draft.config.setPhaseManual !== undefined) {
+      console.log("🎛️ Phase config found in draft:");
+      console.log(`   setPhaseManual: ${draft.config.setPhaseManual}`);
+      console.log(`   phaseManual: ${draft.config.phaseManual}`);
+      console.log(`   freezeAfter: ${draft.config.freezeAfter}`);
+    } else {
+      console.warn(
+        "⚠️ No phase config found in draft. Backend may use defaults."
+      );
+    }
+
     // Check and log timestamp values
     const config = draft.config;
     if (config.schedule) {
@@ -148,113 +160,30 @@ export async function configureAllOneBuild(id: string, adminAddr?: string) {
         console.warn(`   Đây có thể là nguyên nhân gây lỗi E_SALE_CLOSED.`);
       }
 
-      // Fix timestamps if needed - Đảm bảo thứ tự đúng và thời gian hợp lệ theo smart contract
-      const fixTimestamps = true; // Set to false if you want to disable automatic fixing
-      if (fixTimestamps) {
-        const updatedConfig = { ...draft.config };
-        let modified = false;
-
-        // Lấy thời gian hiện tại + thêm buffer để đảm bảo nó trong tương lai
-        const now = Math.floor(Date.now() / 1000);
-        console.log(`Thời gian hiện tại (Unix): ${now}`);
-
-        // Các khoảng thời gian tối thiểu - điều chỉnh theo yêu cầu của smart contract
-        const MIN_TIME_FROM_NOW = 300; // Tối thiểu 5 phút từ hiện tại
-        const MIN_PRESALE_DURATION = 600; // Presale kéo dài tối thiểu 10 phút
-        const MIN_SALE_DURATION = 3600; // Sale kéo dài tối thiểu 1 giờ sau khi public
-
-        // Tính toán thời gian bắt đầu presale (ít nhất 5 phút từ hiện tại)
-        const minPresaleTime = now + MIN_TIME_FROM_NOW;
-
-        // Nếu thời gian presale đã cấu hình trước đó lớn hơn thời gian tối thiểu, thì giữ nguyên
-        // Nếu không, sử dụng thời gian tối thiểu
-        updatedConfig.schedule.presaleStart = Math.max(
-          minPresaleTime,
-          updatedConfig.schedule.presaleStart || 0
-        );
-
-        // Đảm bảo thời gian public sale bắt đầu sau presale ít nhất 10 phút
-        updatedConfig.schedule.publicStart = Math.max(
-          updatedConfig.schedule.presaleStart + MIN_PRESALE_DURATION,
-          updatedConfig.schedule.publicStart || 0
-        );
-
-        // Đảm bảo sale kết thúc sau khi public sale bắt đầu ít nhất 1 giờ
-        updatedConfig.schedule.saleEnd = Math.max(
-          updatedConfig.schedule.publicStart + MIN_SALE_DURATION,
-          updatedConfig.schedule.saleEnd || 0
-        );
-
-        // Nếu khoảng cách giữa publicStart và saleEnd quá ngắn (như 60 giây trong trường hợp của bạn)
-        if (
-          updatedConfig.schedule.saleEnd - updatedConfig.schedule.publicStart <
-          MIN_SALE_DURATION
-        ) {
-          console.log(
-            `⚠️ Khoảng thời gian sale quá ngắn: ${
-              updatedConfig.schedule.saleEnd -
-              updatedConfig.schedule.publicStart
-            } giây. Điều chỉnh lên ${MIN_SALE_DURATION} giây.`
-          );
-          updatedConfig.schedule.saleEnd =
-            updatedConfig.schedule.publicStart + MIN_SALE_DURATION;
-        }
-
-        modified = true;
-
-        if (modified) {
-          console.log("🔄 Đã cập nhật thời gian lịch bán hàng:");
-          console.log(
-            `   Presale Start: ${
-              updatedConfig.schedule.presaleStart
-            } (${new Date(
-              updatedConfig.schedule.presaleStart * 1000
-            ).toLocaleString()})`
-          );
-          console.log(
-            `   Public Start: ${updatedConfig.schedule.publicStart} (${new Date(
-              updatedConfig.schedule.publicStart * 1000
-            ).toLocaleString()})`
-          );
-          console.log(
-            `   Sale End: ${updatedConfig.schedule.saleEnd} (${new Date(
-              updatedConfig.schedule.saleEnd * 1000
-            ).toLocaleString()})`
-          );
-
-          // Kiểm tra lại thứ tự thời gian
-          if (
-            updatedConfig.schedule.publicStart <=
-            updatedConfig.schedule.presaleStart
-          ) {
-            console.error(
-              "❌ Lỗi nghiêm trọng: Public start vẫn trước hoặc bằng Presale start"
-            );
-          }
-          if (
-            updatedConfig.schedule.saleEnd <= updatedConfig.schedule.publicStart
-          ) {
-            console.error(
-              "❌ Lỗi nghiêm trọng: Sale end vẫn trước hoặc bằng Public start"
-            );
-          }
-
-          // Sử dụng config đã cập nhật
-          draft.config = updatedConfig;
-        }
-      }
+      // Use timestamps from database as-is without auto-fixing
+      console.log(
+        "📋 Using timestamp values from database without modification:"
+      );
     }
   }
+
+  // Prepare payload for backend
+  const configPayload = {
+    adminAddr,
+    config: draft.config, // Pass draft config to backend (includes phase config)
+  };
+
+  console.log(
+    "📤 Sending config payload to backend:",
+    JSON.stringify(configPayload, null, 2)
+  );
 
   const res = await apiCall(
     `${API_BASE_URL}/collections/${id}/configure-all-one-build`,
     {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        adminAddr,
-        config: draft.config, // Pass draft config to backend
-      }),
+      body: JSON.stringify(configPayload),
     }
   );
 
