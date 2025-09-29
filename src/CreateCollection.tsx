@@ -34,6 +34,16 @@ export default function CreateCollection({
     manifest: null as File | null,
   });
 
+  // Collection mode state
+  const [collectionMode, setCollectionMode] = useState<"manual" | "manifest">("manual");
+
+  // Manifest preview state
+  const [manifestPreview, setManifestPreview] = useState<{
+    totalNFTs?: number;
+    hasError?: boolean;
+    errorMessage?: string;
+  } | null>(null);
+
   const [splits, setSplits] = useState([{ to: "", bps: 0 }]);
 
   const [allowlist, setAllowlist] = useState([""]);
@@ -83,6 +93,43 @@ export default function CreateCollection({
         [type]: selectedFiles[0],
       }));
     }
+
+    // Auto-detect mode when manifest is uploaded
+    if (type === "manifest" && selectedFiles[0]) {
+      setCollectionMode("manifest");
+      // Preview manifest content
+      previewManifestFile(selectedFiles[0]);
+    } else if (type === "manifest" && !selectedFiles[0]) {
+      setCollectionMode("manual");
+      setManifestPreview(null);
+    }
+  };
+
+  const previewManifestFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      const manifest = JSON.parse(text);
+
+      // Try to extract total NFTs from manifest
+      let totalNFTs = 0;
+      if (Array.isArray(manifest)) {
+        totalNFTs = manifest.length;
+      } else if (manifest.nfts && Array.isArray(manifest.nfts)) {
+        totalNFTs = manifest.nfts.length;
+      } else if (manifest.count) {
+        totalNFTs = manifest.count;
+      }
+
+      setManifestPreview({
+        totalNFTs,
+        hasError: false,
+      });
+    } catch (error) {
+      setManifestPreview({
+        hasError: true,
+        errorMessage: `Invalid JSON: ${(error as Error).message}`,
+      });
+    }
   };
 
   const addSplit = () => {
@@ -111,6 +158,30 @@ export default function CreateCollection({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validation based on mode
+    if (collectionMode === "manifest") {
+      if (!files.manifest) {
+        alert("❌ Manifest file is required when using Manifest Mode!");
+        return;
+      }
+
+      if (manifestPreview?.hasError) {
+        alert(`❌ Invalid manifest file: ${manifestPreview.errorMessage}`);
+        return;
+      }
+
+      if (!manifestPreview?.totalNFTs || manifestPreview.totalNFTs <= 0) {
+        alert("❌ Manifest file must contain at least 1 NFT!");
+        return;
+      }
+    }
+
+    if (collectionMode === "manual" && (!formData.maxSupply || parseInt(formData.maxSupply) <= 0)) {
+      alert("❌ Max Supply must be greater than 0 in Manual Mode!");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -136,8 +207,14 @@ export default function CreateCollection({
         })
       );
 
-      // Supply config
-      submitData.append("maxSupply", formData.maxSupply);
+      // Supply config - different handling based on mode
+      if (collectionMode === "manual") {
+        submitData.append("maxSupply", formData.maxSupply);
+      } else {
+        // In manifest mode, max supply will be calculated from manifest by backend
+        submitData.append("collectionMode", "manifest");
+        submitData.append("maxSupply", "0"); // Placeholder, will be overridden by backend
+      }
       submitData.append("perWalletCap", formData.perWalletCap);
 
       // Schedule (convert to unix timestamp)
@@ -185,18 +262,15 @@ export default function CreateCollection({
 
       console.log("🎛️ Phase Management values being sent:");
       console.log(
-        `   setPhaseManual: ${
-          formData.setPhaseManual
+        `   setPhaseManual: ${formData.setPhaseManual
         } (${typeof formData.setPhaseManual})`
       );
       console.log(
-        `   phaseManual: ${
-          formData.phaseManual
+        `   phaseManual: ${formData.phaseManual
         } (${typeof formData.phaseManual})`
       );
       console.log(
-        `   freezeAfter: ${
-          formData.freezeAfter
+        `   freezeAfter: ${formData.freezeAfter
         } (${typeof formData.freezeAfter})`
       );
 
@@ -238,6 +312,83 @@ export default function CreateCollection({
     <div style={{ padding: 20, maxWidth: 800, margin: "0 auto" }}>
       <h2>🚀 Create NFT Collection</h2>
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+        {/* Collection Mode Selection */}
+        <section
+          style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
+        >
+          <h3>🎯 Collection Mode</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>
+                Choose Collection Type:
+              </label>
+              <div style={{ display: "flex", gap: 16 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="radio"
+                    name="collectionMode"
+                    value="manual"
+                    checked={collectionMode === "manual"}
+                    onChange={(e) => setCollectionMode(e.target.value as "manual" | "manifest")}
+                  />
+                  📝 Manual Supply (Enter max supply manually)
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="radio"
+                    name="collectionMode"
+                    value="manifest"
+                    checked={collectionMode === "manifest"}
+                    onChange={(e) => setCollectionMode(e.target.value as "manual" | "manifest")}
+                  />
+                  📋 Manifest Mode (Max supply calculated from manifest)
+                </label>
+              </div>
+            </div>
+
+            {collectionMode === "manual" && (
+              <div style={{ padding: 12, background: "#e7f3ff", borderRadius: 6, borderLeft: "4px solid #007bff" }}>
+                <strong>📝 Manual Mode:</strong> You will enter the max supply manually. Make sure your NFT images match this number.
+              </div>
+            )}
+
+            {collectionMode === "manifest" && (
+              <div style={{ padding: 12, background: "#fff3cd", borderRadius: 6, borderLeft: "4px solid #ffc107" }}>
+                <strong>📋 Manifest Mode:</strong> Max supply will be automatically calculated from your manifest.json file.
+                {files.manifest && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: "0.9em", color: "#856404", marginBottom: 8 }}>
+                      ✅ Manifest uploaded: {files.manifest.name}
+                    </div>
+                    {manifestPreview && (
+                      <div style={{ fontSize: "0.9em" }}>
+                        {manifestPreview.hasError ? (
+                          <div style={{ color: "#dc3545" }}>
+                            ❌ {manifestPreview.errorMessage}
+                          </div>
+                        ) : manifestPreview.totalNFTs ? (
+                          <div style={{ color: "#28a745", fontWeight: "bold" }}>
+                            📊 Expected NFTs: {manifestPreview.totalNFTs}
+                          </div>
+                        ) : (
+                          <div style={{ color: "#6c757d" }}>
+                            📊 Reading manifest...
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!files.manifest && (
+                  <div style={{ fontSize: "0.9em", color: "#856404", marginTop: 8 }}>
+                    ⚠️ Please upload a manifest.json file to see the NFT count
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* Basic Info */}
         <section
           style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
@@ -275,34 +426,104 @@ export default function CreateCollection({
         >
           <h3>💰 Supply & Pricing</h3>
           <div
-            style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}
+            style={{ display: "grid", gap: 12 }}
           >
-            <input
-              name="maxSupply"
-              placeholder="Max Supply"
-              type="number"
-              value={formData.maxSupply}
-              onChange={handleInputChange}
-            />
-            <input
-              name="perWalletCap"
-              placeholder="Per Wallet Cap"
-              type="number"
-              value={formData.perWalletCap}
-              onChange={handleInputChange}
-            />
-            <input
-              name="presalePrice"
-              placeholder="Presale Price (octas)"
-              value={formData.presalePrice}
-              onChange={handleInputChange}
-            />
-            <input
-              name="publicPrice"
-              placeholder="Public Price (octas)"
-              value={formData.publicPrice}
-              onChange={handleInputChange}
-            />
+            {/* Max Supply - Conditional based on mode */}
+            <div style={{ display: "grid", gap: 8 }}>
+              {collectionMode === "manual" ? (
+                <div>
+                  <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                    Max Supply: *
+                  </label>
+                  <input
+                    name="maxSupply"
+                    placeholder="Enter max supply (e.g., 1000)"
+                    type="number"
+                    value={formData.maxSupply}
+                    onChange={handleInputChange}
+                    required
+                    style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                  />
+                  <small style={{ color: "#666", fontSize: "0.85em" }}>
+                    💡 Enter the total number of NFTs you want to create
+                  </small>
+                </div>
+              ) : (
+                <div style={{ padding: 12, background: "#f8f9fa", borderRadius: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <strong>📊 Max Supply (Auto-calculated)</strong>
+                  </div>
+                  <div style={{ fontSize: "0.9em", color: "#666", marginBottom: 8 }}>
+                    {files.manifest ? (
+                      <span>✅ Will be calculated from manifest.json when submitted</span>
+                    ) : (
+                      <span>⚠️ Please upload a manifest.json file first</span>
+                    )}
+                  </div>
+                  <input
+                    name="maxSupply"
+                    type="text"
+                    value="Auto-calculated from manifest"
+                    disabled
+                    style={{
+                      padding: 8,
+                      background: "#e9ecef",
+                      border: "1px solid #ccc",
+                      borderRadius: 4,
+                      color: "#6c757d",
+                      width: "100%"
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Other pricing fields */}
+            <div
+              style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}
+            >
+              <div>
+                <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                  Per Wallet Cap:
+                </label>
+                <input
+                  name="perWalletCap"
+                  placeholder="Max NFTs per wallet"
+                  type="number"
+                  value={formData.perWalletCap}
+                  onChange={handleInputChange}
+                  style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                  Presale Price (APT):
+                </label>
+                <input
+                  name="presalePrice"
+                  placeholder="Presale price in APT"
+                  type="number"
+                  step="0.00000001"
+                  value={formData.presalePrice}
+                  onChange={handleInputChange}
+                  style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                  Public Price (APT):
+                </label>
+                <input
+                  name="publicPrice"
+                  placeholder="Public price in APT"
+                  type="number"
+                  step="0.00000001"
+                  value={formData.publicPrice}
+                  onChange={handleInputChange}
+                  style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                />
+              </div>
+            </div>
           </div>
         </section>
 
@@ -544,7 +765,12 @@ export default function CreateCollection({
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "⏳ Creating Draft..." : "🚀 Create Collection Draft"}
+          {loading
+            ? "⏳ Creating Draft..."
+            : collectionMode === "manifest"
+              ? "🚀 Create Manifest Collection"
+              : "🚀 Create Manual Collection"
+          }
         </button>
       </form>
     </div>

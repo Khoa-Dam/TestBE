@@ -1,5 +1,4 @@
-import { apiCall } from "./config";
-import { API_BASE_URL } from "./config";
+import { apiCall, API_BASE_URL } from "./config";
 import { getDraft } from "./draft";
 import { parseBuildTxResponse } from "./utils";
 import { MintProgress, RandomMintResult } from "./types";
@@ -231,8 +230,39 @@ export async function markMinted(id: string, tokenIndex: number) {
   return res.json();
 }
 
+// 🔥 ONE-STEP: Mark minted + Auto-sync NFT data
+export async function markMintedWithSync(
+  id: string,
+  tokenIndex: number,
+  tokenName: string,
+  txHash?: string
+) {
+  const res = await apiCall(
+    `${API_BASE_URL}/collections/${id}/mark-minted-with-sync`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tokenIndex,
+        tokenName,
+        txHash,
+        autoSync: true,
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function getMintProgress(id: string): Promise<MintProgress> {
   const res = await apiCall(`${API_BASE_URL}/collections/${id}/mint-progress`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// Get sync status for minted NFTs
+export async function getSyncStatus(id: string) {
+  const res = await apiCall(`${API_BASE_URL}/collections/${id}/sync-status`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

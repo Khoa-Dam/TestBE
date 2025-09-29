@@ -1,5 +1,4 @@
-import { apiCall } from "./config";
-import { API_BASE_URL } from "./config";
+import { apiCall, API_BASE_URL } from "./config";
 import { Draft } from "./types";
 
 // ========================================================================

@@ -2,9 +2,12 @@ import { useState } from "react";
 import ConnectBar from "./ConnectBar";
 import CreateCollection from "./CreateCollection";
 import WorkflowManager from "./WorkflowManager";
+import { Collections } from "./pages/Collections";
+import { CollectionDetail } from "./pages/CollectionDetail";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { aptos } from "./lib.aptosClient";
 import type { BuildTxResponse, Draft } from "./types";
+import { Collection } from "./api/workflow";
 import {
   configureAllOneBuild,
   deployBuild,
@@ -16,12 +19,13 @@ import {
   checkCollectionExists,
 } from "./api";
 
-type AppMode = "home" | "create" | "workflow" | "legacy";
+type AppMode = "home" | "create" | "workflow" | "legacy" | "collections" | "collection-detail";
 
 export default function App() {
   const { signAndSubmitTransaction, account } = useWallet();
   const [mode, setMode] = useState<AppMode>("home");
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [log, setLog] = useState<string>("");
   const [beMeta, setBeMeta] = useState<string>("");
   const [receiver, setReceiver] = useState<string>(""); // for test transfer
@@ -45,6 +49,18 @@ export default function App() {
   // Handle back from WorkflowManager
   const handleBackFromWorkflow = () => {
     setMode("create");
+  };
+
+  // Handle collection click from Collections page
+  const handleCollectionClick = (collection: Collection) => {
+    setSelectedCollection(collection);
+    setMode("collection-detail");
+  };
+
+  // Handle back from CollectionDetail page
+  const handleBackFromCollectionDetail = () => {
+    setMode("collections");
+    setSelectedCollection(null);
   };
 
   const append = (x: any) =>
@@ -407,6 +423,42 @@ export default function App() {
   }
 
   // Navigation based on mode
+  if (mode === "collections") {
+    return (
+      <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
+          <button onClick={() => setMode("home")}>← Back to Home</button>
+          <h1>NFT Collections Explorer</h1>
+        </div>
+        <ConnectBar />
+        <Collections onCollectionClick={handleCollectionClick} />
+      </div>
+    );
+  }
+
+  if (mode === "collection-detail") {
+    return (
+      <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
+        <ConnectBar />
+        {selectedCollection ? (
+          <CollectionDetail
+            collection={selectedCollection}
+            onBack={handleBackFromCollectionDetail}
+          />
+        ) : (
+          <div>Collection not found. Please go back and try again.</div>
+        )}
+      </div>
+    );
+  }
+
   if (mode === "create") {
     return (
       <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
@@ -609,7 +661,7 @@ export default function App() {
           <p>
             Create and manage your NFT collections from draft to deployment:
           </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 15, flexWrap: "wrap" }}>
             <button
               onClick={() => setMode("create")}
               style={{
@@ -623,6 +675,20 @@ export default function App() {
               }}
             >
               📝 Create New Collection
+            </button>
+            <button
+              onClick={() => setMode("collections")}
+              style={{
+                padding: "12px 24px",
+                background: "#17a2b8",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: "16px",
+              }}
+            >
+              🎨 Browse Collections
             </button>
             {currentDraft && (
               <button

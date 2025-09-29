@@ -4,16 +4,19 @@ import {
   configureAllOneBuild,
   deployBuild,
   getMintProgress,
+  getSyncStatus,
   markMinted,
+  markMintedWithSync,
   onchainSync,
   randomMint,
 } from "./signing";
+import { API_BASE_URL, apiCall } from "./config";
 
 // ========================================================================
 // NFT COLLECTION WORKFLOW CLASS
 // ========================================================================
 export class NFTCollectionWorkflow {
-  constructor(public draftId: string) {}
+  constructor(public draftId: string) { }
 
   // Step 2: Publish IPFS
   async publishIPFS(startIndex = 0) {
@@ -203,15 +206,31 @@ export class NFTCollectionWorkflow {
         );
       }
 
-      // Đánh dấu là đã mint
+      // 🔥 ONE-STEP: Mark minted + Auto-sync NFT data
       try {
-        await markMinted(this.draftId, data.tokenIndex);
-      } catch (markError) {
+        console.log("🔄 Marking as minted and syncing NFT data...");
+        await markMintedWithSync(
+          this.draftId,
+          data.tokenIndex,
+          data.metadata.name,
+          txResult.hash
+        );
+        console.log("✅ NFT marked as minted and sync initiated");
+      } catch (syncError) {
         console.warn(
-          `Cảnh báo: Không thể đánh dấu token đã mint, nhưng mint đã thành công: ${
-            (markError as Error).message
+          `⚠️ Auto-sync failed, falling back to manual mark: ${(syncError as Error).message
           }`
         );
+        // Fallback to manual mark if sync fails
+        try {
+          await markMinted(this.draftId, data.tokenIndex);
+          console.log("✅ NFT marked as minted (manual fallback)");
+        } catch (markError) {
+          console.warn(
+            `Cảnh báo: Không thể đánh dấu token đã mint, nhưng mint đã thành công: ${(markError as Error).message
+            }`
+          );
+        }
       }
 
       return {
@@ -234,4 +253,144 @@ export class NFTCollectionWorkflow {
   async getDraft() {
     return getDraft(this.draftId);
   }
+
+  // Get sync status for minted NFTs
+  async getSyncStatus() {
+    return getSyncStatus(this.draftId);
+  }
 }
+
+// ========================================================================
+// COLLECTIONS AND NFTS API FUNCTIONS
+// ========================================================================
+
+// Collections API types
+export interface Collection {
+  _id: string;
+  collection_id: string;
+  collection_name: string;
+  description?: string;
+  uri?: string; // Banner image
+  creator_address: string;
+  max_supply: number;
+  total_minted_v2: number;
+  last_tx_version: number;
+  is_draft_collection: boolean;
+}
+
+export interface CollectionsResponse {
+  success: boolean;
+  collections: Collection[];
+  total: number;
+  count: number;
+  pagination: {
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
+// NFT API types
+export interface NFTAttribute {
+  trait_type: string;
+  value: string;
+}
+
+export interface NFT {
+  _id: string;
+  token_name: string;
+  description?: string;
+  image_uri: string; // HTTPS URL
+  collection_id: string;
+  current_owner?: string;
+  attributes?: NFTAttribute[];
+  sync_status: string;
+  minted_at?: string;
+}
+
+export interface NFTsResponse {
+  success: boolean;
+  nfts: NFT[];
+  total: number;
+  count: number;
+  pagination: {
+    skip: number;
+    limit: number;
+    hasMore: boolean;
+  };
+}
+
+/**
+ * Get collections from indexer API
+ */
+export async function getCollections(limit = 50, offset = 0): Promise<CollectionsResponse> {
+  const url = `${API_BASE_URL}/indexer/collections?limit=${limit}&offset=${offset}`;
+  console.log('getCollections: Calling API with limit:', limit, 'offset:', offset);
+
+  try {
+    const response = await apiCall(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('getCollections: Raw API response:', data);
+
+    // Validate response structure
+    if (!data.success || !Array.isArray(data.collections)) {
+      throw new Error("Invalid response format from collections API");
+    }
+
+    console.log('getCollections: Successfully parsed response with', data.collections.length, 'collections');
+    return data;
+  } catch (error) {
+    console.error("Error fetching collections:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get NFTs for a specific collection
+ */
+export async function getCollectionNFTs(
+  collectionId: string,
+  options?: {
+    skip?: number;
+    limit?: number;
+    syncStatus?: string;
+    owner?: string;
+  }
+): Promise<NFTsResponse> {
+  const { skip = 0, limit = 50, syncStatus, owner } = options || {};
+
+  // Build query parameters
+  const params = new URLSearchParams({
+    skip: skip.toString(),
+    limit: limit.toString(),
+  });
+
+  if (syncStatus) params.append('syncStatus', syncStatus);
+  if (owner) params.append('owner', owner);
+
+  const url = `${API_BASE_URL}/nft-sync/collection/${collectionId}/nfts?${params.toString()}`;
+
+  try {
+    const response = await apiCall(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Validate response structure
+    if (!data.success || !Array.isArray(data.nfts)) {
+      throw new Error("Invalid response format from NFTs API");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching collection NFTs:", error);
+    throw error;
+  }
+}
+

@@ -40,3 +40,20 @@ export type RandomMintResult = {
   remainingTokens: number;
   totalTokens: number;
 };
+
+export type SyncStatus = {
+  collectionId: string;
+  totalMinted: number;
+  syncedCount: number;
+  pendingSyncCount: number;
+  lastSyncTime?: number;
+  syncProgress: number; // 0-100
+  mintedTokens: {
+    tokenIndex: number;
+    tokenName: string;
+    txHash: string;
+    syncStatus: "pending" | "syncing" | "synced" | "failed";
+    syncedAt?: number;
+    retryCount?: number;
+  }[];
+};
