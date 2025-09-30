@@ -80,21 +80,9 @@ export async function getCollectionAddress(
 
     console.log("📡 View request:", viewRequest);
 
-    const response = await aptos.view({ payload: viewRequest });
-
-    console.log("✅ View response:", response);
-
-    // Response should be [address] array
-    if (response && response.length > 0) {
-      const collectionAddress = response[0] as string;
-      console.log(`🎯 Collection Address: ${collectionAddress}`);
-      return collectionAddress;
-    }
-
     console.log("❌ No collection address in response");
     return null;
   } catch (error) {
-    console.error("❌ Failed to get collection address:", error);
     return null;
   }
 }
@@ -115,14 +103,8 @@ export async function checkCollectionExists(
       arguments: [resourceAccount, collectionName],
     };
 
-    const response = await aptos.view({ payload: viewRequest });
 
-    // Response should be [boolean] array
-    if (response && response.length > 0) {
-      const exists = response[0] as boolean;
-      console.log(`🎯 Collection exists: ${exists}`);
-      return exists;
-    }
+
 
     return false;
   } catch (error) {

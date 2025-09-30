@@ -1,38 +1,20 @@
 import React from 'react';
-import { MintableDraft } from '../api/workflow';
+import { Collection } from '../api/workflow';
 
 interface CollectionCardProps {
-    draft: MintableDraft;
-    onClick: (draft: MintableDraft) => void;
+    collection: Collection;
+    onClick: () => void;
     style?: React.CSSProperties;
 }
 
-export const CollectionCard: React.FC<CollectionCardProps> = ({
-    draft,
+export const CollectionCardOld: React.FC<CollectionCardProps> = ({
+    collection,
     onClick,
     style = {}
 }) => {
-    const getSalePhaseColor = (phase: string) => {
-        switch (phase) {
-            case 'CLOSED': return '#dc3545';
-            case 'PRESALE': return '#ffc107';
-            case 'PUBLIC': return '#28a745';
-            default: return '#6c757d';
-        }
-    };
-
-    const getSalePhaseBadge = (phase: string, phaseMode?: string) => {
-        switch (phase) {
-            case 'CLOSED': return '🔒 Closed';
-            case 'PRESALE': return '🎯 Presale';
-            case 'PUBLIC': return '🌍 Public';
-            default: return '❓ Unknown';
-        }
-    };
-
     return (
         <div
-            onClick={() => onClick(draft)}
+            onClick={onClick}
             style={{
                 background: 'white',
                 border: '1px solid #e9ecef',
@@ -41,7 +23,6 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                position: 'relative',
                 ...style
             }}
             onMouseEnter={(e) => {
@@ -53,7 +34,7 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                 e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
             }}
         >
-            {/* Banner Image */}
+            {/* Collection Image */}
             <div
                 style={{
                     width: '100%',
@@ -68,10 +49,10 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                     overflow: 'hidden',
                 }}
             >
-                {draft.banner_image ? (
+                {collection.uri ? (
                     <img
-                        src={draft.banner_image}
-                        alt={draft.name}
+                        src={collection.uri}
+                        alt={collection.collection_name}
                         style={{
                             width: '100%',
                             height: '100%',
@@ -93,25 +74,6 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                         🎨
                     </div>
                 )}
-
-                {/* Sale Phase Badge */}
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                        background: getSalePhaseColor(draft.salePhase),
-                        color: 'white',
-                        padding: '4px 12px',
-                        borderRadius: '16px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        textShadow: '1px 1px 2px rgba(0,0,0,0.3)',
-                    }}
-                >
-                    {getSalePhaseBadge(draft.salePhase, draft.phaseMode)}
-                    {draft.phaseMode && ` (${draft.phaseMode})`}
-                </div>
             </div>
 
             {/* Collection Info */}
@@ -127,7 +89,7 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                         whiteSpace: 'nowrap',
                     }}
                 >
-                    {draft.name}
+                    {collection.collection_name}
                 </h3>
 
                 <p
@@ -142,48 +104,8 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                         overflow: 'hidden',
                     }}
                 >
-                    {draft.desc || 'No description available'}
+                    {collection.description || 'No description available'}
                 </p>
-
-                {/* Progress Bar */}
-                <div style={{ marginBottom: '12px' }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '4px',
-                            fontSize: '12px',
-                        }}
-                    >
-                        <span style={{ color: '#6c757d' }}>
-                            Progress: {draft.minted} / {draft.total}
-                        </span>
-                        <span style={{ color: '#007bff', fontWeight: '500' }}>
-                            {draft.progress_percentage}%
-                        </span>
-                    </div>
-
-                    <div
-                        style={{
-                            width: '100%',
-                            height: '8px',
-                            background: '#e9ecef',
-                            borderRadius: '4px',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: `${draft.progress_percentage}%`,
-                                height: '100%',
-                                background: 'linear-gradient(90deg, #007bff 0%, #28a745 100%)',
-                                borderRadius: '4px',
-                                transition: 'width 0.3s ease',
-                            }}
-                        />
-                    </div>
-                </div>
 
                 {/* Stats */}
                 <div
@@ -195,10 +117,10 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
                     }}
                 >
                     <span style={{ color: '#28a745', fontWeight: '500' }}>
-                        {draft.remaining} Available
+                        {collection.total_minted_v2 || 0} Minted
                     </span>
                     <span style={{ color: '#6c757d' }}>
-                        ID: {draft.draft_id.slice(0, 8)}...
+                        ID: {collection.collection_id.slice(0, 8)}...
                     </span>
                 </div>
             </div>

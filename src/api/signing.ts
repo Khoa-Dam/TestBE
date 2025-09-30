@@ -266,3 +266,31 @@ export async function getSyncStatus(id: string) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+// ========================================================================
+// ADMIN: ADD ALLOWLIST (build tx)
+// ========================================================================
+/**
+ * Build an admin add-allowlist transaction for a collection draft
+ * Backend route: PUT /collections/:id/allowlist/add
+ * Body: { addrs: string[], overrideAdminAddr?: string }
+ * Returns: BuildTxResponse (to be signed by wallet)
+ */
+export async function buildAdminAddAllowlist(
+  id: string,
+  addrs: string[],
+  overrideAdminAddr?: string
+) {
+  if (!Array.isArray(addrs) || addrs.length === 0) {
+    throw new Error("addrs must be a non-empty array");
+  }
+
+  const res = await apiCall(`${API_BASE_URL}/collections/${id}/allowlist/add`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ addrs, overrideAdminAddr }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const build = await res.json();
+  return parseBuildTxResponse(build);
+}

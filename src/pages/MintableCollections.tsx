@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { CollectionCardOld as CollectionCard } from '../components/CollectionCardOld';
-import { getCollections, Collection, CollectionsResponse } from '../api/workflow';
+import { MintableDraft } from '../api/workflow';
+import { getMintableCollections } from '../api/workflow';
+import { CollectionCard } from '../components/CollectionCard';
 
-interface CollectionsProps {
-    onCollectionClick: (collection: Collection) => void;
+interface MintableCollectionsProps {
+    onCollectionClick: (draft: MintableDraft) => void;
 }
 
-export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) => {
-    const [collections, setCollections] = useState<Collection[]>([]);
+export const MintableCollections: React.FC<MintableCollectionsProps> = ({ onCollectionClick }) => {
+    const [drafts, setDrafts] = useState<MintableDraft[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({
@@ -17,82 +18,69 @@ export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) =
     });
 
     // Filter state
-    const [showOnlyDrafts, setShowOnlyDrafts] = useState(false);
+    const [salePhaseFilter, setSalePhaseFilter] = useState<string>('ALL');
 
-    const fetchCollections = async (loadMore = false) => {
+    const fetchMintableCollections = async (loadMore = false) => {
         try {
             setError(null);
             if (!loadMore) setLoading(true);
 
-            const response: CollectionsResponse = await getCollections(
+            const response = await getMintableCollections(
                 pagination.limit,
                 loadMore ? pagination.offset : 0
             );
 
-            console.log('Collections: Response received:', response);
+            console.log('MintableCollections: Setting drafts:', response.drafts);
 
-            if (response.success) {
-                console.log('Collections: Setting collections:', response.collections);
-
-                // Filter collections based on draft status
-                const filteredCollections = showOnlyDrafts
-                    ? response.collections.filter(collection => collection.is_draft_collection)
-                    : response.collections;
-
-                console.log('Collections: Total from API:', response.collections.length);
-                console.log('Collections: Filtered count:', filteredCollections.length);
-                console.log('Collections: Show only drafts:', showOnlyDrafts);
-                console.log('Collections: All collections:', response.collections.map(c => ({
-                    id: c.collection_id,
-                    name: c.collection_name,
-                    isDraft: c.is_draft_collection
-                })));
-
-                setCollections(loadMore ? [...collections, ...filteredCollections] : filteredCollections);
-                setPagination({
-                    ...pagination,
-                    offset: loadMore ? pagination.offset + response.collections.length : response.collections.length,
-                    hasMore: response.pagination.hasMore,
-                });
-            } else {
-                throw new Error('Failed to fetch collections');
+            // Filter drafts based on sale phase
+            let filteredDrafts = response.drafts;
+            if (salePhaseFilter !== 'ALL') {
+                filteredDrafts = response.drafts.filter(draft => draft.salePhase === salePhaseFilter);
             }
+
+            setDrafts(loadMore ? [...drafts, ...filteredDrafts] : filteredDrafts);
+            setPagination({
+                ...pagination,
+                offset: loadMore ? pagination.offset + response.drafts.length : response.drafts.length,
+                hasMore: response.pagination.hasMore,
+            });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred while fetching collections');
-            console.error('Error fetching collections:', err);
+            setError(err instanceof Error ? err.message : 'An error occurred while fetching mintable collections');
+            console.error('Error fetching mintable collections:', err);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchCollections();
-    }, []);
+        fetchMintableCollections();
+    }, [salePhaseFilter]); // Refetch when filter changes
 
     const handleLoadMore = () => {
         if (pagination.hasMore && !loading) {
-            fetchCollections(true);
+            fetchMintableCollections(true);
         }
     };
 
-    if (loading && collections.length === 0) {
+
+    if (loading && drafts.length === 0) {
         return (
             <div style={{ padding: '40px', textAlign: 'center' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-                <h2>Loading Collections...</h2>
-                <p>Please wait while we fetch the latest NFT collections.</p>
+                <h2>Loading Mintable Collections...</h2>
+                <p>Please wait while we fetch collections available for minting.</p>
             </div>
         );
     }
 
-    if (error && collections.length === 0) {
+    if (error && drafts.length === 0) {
         return (
             <div style={{ padding: '40px', textAlign: 'center' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
                 <h2>Error Loading Collections</h2>
                 <p style={{ color: '#dc3545', marginBottom: '20px' }}>{error}</p>
                 <button
-                    onClick={() => fetchCollections()}
+                    onClick={() => fetchMintableCollections()}
                     style={{
                         padding: '12px 24px',
                         background: '#007bff',
@@ -131,7 +119,7 @@ export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) =
                             margin: '0 0 8px 0',
                         }}
                     >
-                        🎨 NFT Collections
+                        🚀 Mintable Collections
                     </h1>
                     <p
                         style={{
@@ -140,7 +128,7 @@ export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) =
                             margin: 0,
                         }}
                     >
-                        Discover and explore amazing NFT collections on Aptos
+                        Discover and mint NFTs from active collections
                     </p>
                 </div>
 
@@ -154,44 +142,45 @@ export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) =
                         marginBottom: '16px',
                     }}
                 >
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                            type="checkbox"
-                            checked={showOnlyDrafts}
-                            onChange={(e) => {
-                                setShowOnlyDrafts(e.target.checked);
-                                // Reset collections when filter changes
-                                setCollections([]);
-                                setPagination({ ...pagination, offset: 0 });
-                            }}
-                        />
-                        <span style={{ fontSize: '14px', color: '#495057' }}>
-                            Show only Draft Collections
-                        </span>
+                    <label style={{ fontSize: '14px', color: '#495057' }}>
+                        Filter by Sale Phase:
                     </label>
+                    <select
+                        value={salePhaseFilter}
+                        onChange={(e) => setSalePhaseFilter(e.target.value)}
+                        style={{
+                            padding: '8px 12px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                        }}
+                    >
+                        <option value="ALL">All Collections</option>
+                        <option value="PUBLIC">🌍 Public Sale</option>
+                        <option value="PRESALE">🎯 Presale</option>
+                        <option value="CLOSED">🔒 Closed</option>
+                    </select>
                 </div>
             </div>
 
             {/* Collections Grid */}
-            {collections.length > 0 ? (
+            {drafts.length > 0 ? (
                 <>
                     <div
                         style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
                             gap: '24px',
                             marginBottom: '32px',
                         }}
                     >
-                        {collections
-                            .filter(collection => collection && collection.collection_id)
-                            .map((collection) => (
-                                <CollectionCard
-                                    key={collection.collection_id}
-                                    collection={collection}
-                                    onClick={() => onCollectionClick(collection)}
-                                />
-                            ))}
+                        {drafts.map((draft) => (
+                            <CollectionCard
+                                key={draft.draft_id}
+                                draft={draft}
+                                onClick={onCollectionClick}
+                            />
+                        ))}
                     </div>
 
                     {/* Load More Button */}
@@ -220,15 +209,18 @@ export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) =
             ) : (
                 <div style={{ textAlign: 'center', padding: '60px 20px' }}>
                     <div style={{ fontSize: '64px', marginBottom: '16px' }}>📭</div>
-                    <h3 style={{ color: '#6c757d', margin: '0 0 8px 0' }}>No Collections Found</h3>
+                    <h3 style={{ color: '#6c757d', margin: '0 0 8px 0' }}>No Mintable Collections Found</h3>
                     <p style={{ color: '#6c757d', margin: 0 }}>
-                        No collections are currently available. Please check back later.
+                        {salePhaseFilter !== 'ALL'
+                            ? `No collections found with ${salePhaseFilter.toLowerCase()} phase.`
+                            : 'No collections are currently available for minting.'
+                        }
                     </p>
                 </div>
             )}
 
             {/* Stats */}
-            {collections.length > 0 && (
+            {drafts.length > 0 && (
                 <div
                     style={{
                         marginTop: '32px',
@@ -239,11 +231,11 @@ export const Collections: React.FC<CollectionsProps> = ({ onCollectionClick }) =
                     }}
                 >
                     <p style={{ margin: 0, color: '#6c757d' }}>
-                        Showing {collections.length} {showOnlyDrafts ? 'draft ' : ''}collection{collections.length !== 1 ? 's' : ''}
+                        Showing {drafts.length} mintable collection{drafts.length !== 1 ? 's' : ''}
+                        {salePhaseFilter !== 'ALL' && ` in ${salePhaseFilter.toLowerCase()} phase`}
                     </p>
                 </div>
             )}
         </div>
     );
 };
-

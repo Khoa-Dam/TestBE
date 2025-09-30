@@ -4,10 +4,13 @@ import CreateCollection from "./CreateCollection";
 import WorkflowManager from "./WorkflowManager";
 import { Collections } from "./pages/Collections";
 import { CollectionDetail } from "./pages/CollectionDetail";
+import { MintableCollections } from "./pages/MintableCollections";
+import { MintPage } from "./pages/MintPage";
+import { CountdownTest } from "./components/mint/CountdownTest";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { aptos } from "./lib.aptosClient";
 import type { BuildTxResponse, Draft } from "./types";
-import { Collection } from "./api/workflow";
+import { Collection, MintableDraft } from "./api/workflow";
 import {
   configureAllOneBuild,
   deployBuild,
@@ -19,13 +22,14 @@ import {
   checkCollectionExists,
 } from "./api";
 
-type AppMode = "home" | "create" | "workflow" | "legacy" | "collections" | "collection-detail";
+type AppMode = "home" | "create" | "workflow" | "legacy" | "collections" | "collection-detail" | "mintable-collections" | "mint" | "countdown-test";
 
 export default function App() {
   const { signAndSubmitTransaction, account } = useWallet();
   const [mode, setMode] = useState<AppMode>("home");
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [selectedMintableDraft, setSelectedMintableDraft] = useState<MintableDraft | null>(null);
   const [log, setLog] = useState<string>("");
   const [beMeta, setBeMeta] = useState<string>("");
   const [receiver, setReceiver] = useState<string>(""); // for test transfer
@@ -61,6 +65,18 @@ export default function App() {
   const handleBackFromCollectionDetail = () => {
     setMode("collections");
     setSelectedCollection(null);
+  };
+
+  // Handle mintable collection click from MintableCollections page
+  const handleMintableCollectionClick = (draft: MintableDraft) => {
+    setSelectedMintableDraft(draft);
+    setMode("mint");
+  };
+
+  // Handle back from Mint page
+  const handleBackFromMint = () => {
+    setMode("mintable-collections");
+    setSelectedMintableDraft(null);
   };
 
   const append = (x: any) =>
@@ -459,6 +475,67 @@ export default function App() {
     );
   }
 
+  if (mode === "mintable-collections") {
+    return (
+      <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
+          <button onClick={() => setMode("home")}>← Back to Home</button>
+          <h1>Mintable Collections</h1>
+          <button
+            onClick={() => setMode("countdown-test")}
+            style={{ marginLeft: 'auto', padding: '8px 16px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Test Countdown
+          </button>
+        </div>
+        <ConnectBar />
+        <MintableCollections onCollectionClick={handleMintableCollectionClick} />
+      </div>
+    );
+  }
+
+  if (mode === "mint") {
+    return (
+      <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
+        <ConnectBar />
+        {selectedMintableDraft ? (
+          <MintPage
+            draft={selectedMintableDraft}
+            onBack={handleBackFromMint}
+          />
+        ) : (
+          <div>Draft not found. Please go back and try again.</div>
+        )}
+      </div>
+    );
+  }
+
+  if (mode === "countdown-test") {
+    return (
+      <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
+          <button onClick={() => setMode("mintable-collections")}>← Back to Collections</button>
+          <h1>Countdown Timer Test</h1>
+        </div>
+        <CountdownTest />
+      </div>
+    );
+  }
+
   if (mode === "create") {
     return (
       <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
@@ -657,39 +734,55 @@ export default function App() {
             border: "1px solid #e9ecef",
           }}
         >
-          <h2>🚀 Complete NFT Collection Workflow</h2>
+          <h2>🚀 Complete NFT Platform</h2>
           <p>
-            Create and manage your NFT collections from draft to deployment:
+            Create, manage, and mint NFT collections with full workflow support:
           </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 15, flexWrap: "wrap" }}>
-            <button
-              onClick={() => setMode("create")}
-              style={{
-                padding: "12px 24px",
-                background: "#007bff",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: "16px",
-              }}
-            >
-              📝 Create New Collection
-            </button>
-            <button
-              onClick={() => setMode("collections")}
-              style={{
-                padding: "12px 24px",
-                background: "#17a2b8",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: "16px",
-              }}
-            >
-              🎨 Browse Collections
-            </button>
+          <div style={{ display: "grid", gap: 10, marginTop: 15 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={() => setMode("create")}
+                style={{
+                  padding: "12px 24px",
+                  background: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: "16px",
+                }}
+              >
+                📝 Create Collection
+              </button>
+              <button
+                onClick={() => setMode("collections")}
+                style={{
+                  padding: "12px 24px",
+                  background: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: "16px",
+                }}
+              >
+                🎨 Browse All Collections
+              </button>
+              <button
+                onClick={() => setMode("mintable-collections")}
+                style={{
+                  padding: "12px 24px",
+                  background: "#17a2b8",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: "16px",
+                }}
+              >
+                🚀 Mint Collections
+              </button>
+            </div>
             {currentDraft && (
               <button
                 onClick={() => setMode("workflow")}

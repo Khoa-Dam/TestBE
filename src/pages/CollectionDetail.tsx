@@ -43,14 +43,13 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
     const [nfts, setNfts] = useState<NFT[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-  const [collectionInfo, setCollectionInfo] = useState({
-    total: 0,
-    count: 0,
-    hasMore: false,
-    skip: 0,
-    limit: 50,
-    source: 'draft' as 'draft' | 'indexer',
-  });
+    const [collectionInfo, setCollectionInfo] = useState({
+        total: 0,
+        count: 0,
+        hasMore: false,
+        skip: 0,
+        limit: 50,
+    });
 
     const fetchNFTs = async (loadMore = false) => {
         try {
@@ -69,14 +68,13 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
             if (response.success) {
                 console.log('CollectionDetail: Setting NFTs:', response.nfts);
                 setNfts(loadMore ? [...nfts, ...response.nfts] : response.nfts);
-        setCollectionInfo({
-          total: response.total,
-          count: response.count,
-          hasMore: response.pagination.hasMore,
-          skip: response.pagination.skip,
-          limit: response.pagination.limit,
-          source: response.source || 'draft',
-        });
+                setCollectionInfo({
+                    total: response.total,
+                    count: response.count,
+                    hasMore: response.pagination.hasMore,
+                    skip: response.pagination.skip,
+                    limit: response.pagination.limit,
+                });
             } else {
                 throw new Error('Failed to fetch NFTs');
             }
@@ -211,8 +209,8 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                 <div style={{ textAlign: 'center' }}>
                     <div
                         style={{
-                            background: collectionInfo.source === 'draft' ? '#d4edda' : '#cce5ff',
-                            color: collectionInfo.source === 'draft' ? '#155724' : '#004085',
+                            background: '#e9ecef',
+                            color: '#495057',
                             padding: '4px 12px',
                             borderRadius: '12px',
                             fontSize: '12px',
@@ -220,9 +218,9 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                             display: 'inline-block',
                         }}
                     >
-                        {collectionInfo.source.toUpperCase()}
+                        SYNCED
                     </div>
-                    <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '4px' }}>Source</div>
+                    <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '4px' }}>Status</div>
                 </div>
             </div>
 
@@ -239,7 +237,10 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                     <h2>Error Loading NFTs</h2>
                     <p style={{ color: '#dc3545', marginBottom: '20px' }}>{error}</p>
                     <button
-                        onClick={fetchNFTs}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            fetchNFTs(true);
+                        }}
                         style={{
                             padding: '12px 24px',
                             background: '#007bff',
