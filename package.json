@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aptos-labs/js-pro": "^0.1.4",
     "@aptos-labs/ts-sdk": "^1.15.0",
     "@aptos-labs/wallet-adapter-react": "^3.4.3",
     "react": "^18.2.0",

@@ -7,6 +7,7 @@ import { CollectionDetail } from "./pages/CollectionDetail";
 import { MintableCollections } from "./pages/MintableCollections";
 import { MintPage } from "./pages/MintPage";
 import { CountdownTest } from "./components/mint/CountdownTest";
+import MyProfile from "./components/MyProfile";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { aptos } from "./lib.aptosClient";
 import type { BuildTxResponse, Draft } from "./types";
@@ -22,14 +23,26 @@ import {
   checkCollectionExists,
 } from "./api";
 
-type AppMode = "home" | "create" | "workflow" | "legacy" | "collections" | "collection-detail" | "mintable-collections" | "mint" | "countdown-test";
+type AppMode =
+  | "home"
+  | "create"
+  | "workflow"
+  | "legacy"
+  | "collections"
+  | "collection-detail"
+  | "mintable-collections"
+  | "mint"
+  | "countdown-test"
+  | "profile";
 
 export default function App() {
   const { signAndSubmitTransaction, account } = useWallet();
   const [mode, setMode] = useState<AppMode>("home");
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
-  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const [selectedMintableDraft, setSelectedMintableDraft] = useState<MintableDraft | null>(null);
+  const [selectedCollection, setSelectedCollection] =
+    useState<Collection | null>(null);
+  const [selectedMintableDraft, setSelectedMintableDraft] =
+    useState<MintableDraft | null>(null);
   const [log, setLog] = useState<string>("");
   const [beMeta, setBeMeta] = useState<string>("");
   const [receiver, setReceiver] = useState<string>(""); // for test transfer
@@ -71,6 +84,11 @@ export default function App() {
   const handleMintableCollectionClick = (draft: MintableDraft) => {
     setSelectedMintableDraft(draft);
     setMode("mint");
+  };
+
+  // Handle navigation to profile page
+  const handleNavigateToProfile = () => {
+    setMode("profile");
   };
 
   // Handle back from Mint page
@@ -490,13 +508,23 @@ export default function App() {
           <h1>Mintable Collections</h1>
           <button
             onClick={() => setMode("countdown-test")}
-            style={{ marginLeft: 'auto', padding: '8px 16px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            style={{
+              marginLeft: "auto",
+              padding: "8px 16px",
+              background: "#28a745",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
           >
             Test Countdown
           </button>
         </div>
         <ConnectBar />
-        <MintableCollections onCollectionClick={handleMintableCollectionClick} />
+        <MintableCollections
+          onCollectionClick={handleMintableCollectionClick}
+        />
       </div>
     );
   }
@@ -506,10 +534,7 @@ export default function App() {
       <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
         <ConnectBar />
         {selectedMintableDraft ? (
-          <MintPage
-            draft={selectedMintableDraft}
-            onBack={handleBackFromMint}
-          />
+          <MintPage draft={selectedMintableDraft} onBack={handleBackFromMint} />
         ) : (
           <div>Draft not found. Please go back and try again.</div>
         )}
@@ -528,10 +553,20 @@ export default function App() {
             alignItems: "center",
           }}
         >
-          <button onClick={() => setMode("mintable-collections")}>← Back to Collections</button>
+          <button onClick={() => setMode("mintable-collections")}>
+            ← Back to Collections
+          </button>
           <h1>Countdown Timer Test</h1>
         </div>
         <CountdownTest />
+      </div>
+    );
+  }
+
+  if (mode === "profile") {
+    return (
+      <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
+        <MyProfile onBack={() => setMode("home")} />
       </div>
     );
   }
@@ -723,7 +758,7 @@ export default function App() {
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
       <h1>🎨 Aptos NFT Collection Manager</h1>
-      <ConnectBar />
+      <ConnectBar onNavigateToProfile={handleNavigateToProfile} />
 
       <div style={{ display: "grid", gap: 20, marginTop: 30 }}>
         <section
