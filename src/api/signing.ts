@@ -254,12 +254,6 @@ export async function markMintedWithSync(
   return res.json();
 }
 
-export async function getMintProgress(id: string): Promise<MintProgress> {
-  const res = await apiCall(`${API_BASE_URL}/collections/${id}/mint-progress`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
 // Get sync status for minted NFTs
 export async function getSyncStatus(id: string) {
   const res = await apiCall(`${API_BASE_URL}/collections/${id}/sync-status`);

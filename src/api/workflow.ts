@@ -3,7 +3,6 @@ import { publishIPFS } from "./draft";
 import {
   configureAllOneBuild,
   deployBuild,
-  getMintProgress,
   getSyncStatus,
   markMinted,
   markMintedWithSync,
@@ -265,10 +264,6 @@ export class NFTCollectionWorkflow {
     // Sign and submit using provided signer
     const txResult = await signAndSubmitTx(buildTxResponse);
     return txResult.hash;
-  }
-  // Get progress
-  async getProgress() {
-    return getMintProgress(this.draftId);
   }
 
   // Get draft info

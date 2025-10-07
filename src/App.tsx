@@ -33,6 +33,7 @@ type AppMode =
   | "mintable-collections"
   | "mint"
   | "countdown-test"
+  | "marketplace"
   | "profile";
 
 export default function App() {
@@ -542,6 +543,8 @@ export default function App() {
     );
   }
 
+
+
   if (mode === "countdown-test") {
     return (
       <div style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}>
@@ -817,6 +820,7 @@ export default function App() {
               >
                 🚀 Mint Collections
               </button>
+
             </div>
             {currentDraft && (
               <button

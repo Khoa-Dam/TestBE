@@ -13,6 +13,19 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
     onBack,
     onNftClick,
 }) => {
+    // Handlers for NFT actions
+    const handleBuyNFT = (nft: any) => {
+        console.log('Buying NFT:', nft);
+        // TODO: Implement buy NFT functionality
+        alert(`Buy NFT: ${nft.token_name} for price: ${nft.currentListing?.price} APT`);
+    };
+
+    const handleRelistNFT = (nft: any) => {
+        console.log('Relisting NFT:', nft);
+        // TODO: Implement relist NFT functionality
+        alert(`Relist NFT: ${nft.token_name}`);
+    };
+
     // Defensive check for collection object
     if (!collection || typeof collection !== 'object') {
         return (
@@ -66,8 +79,14 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
             console.log('CollectionDetail: NFT response:', response);
 
             if (response.success) {
-                console.log('CollectionDetail: Setting NFTs:', response.nfts);
-                setNfts(loadMore ? [...nfts, ...response.nfts] : response.nfts);
+                console.log('CollectionDetail: Raw NFTs from API:', response.nfts);
+                console.log('CollectionDetail: All NFTs in collection:', response.nfts?.length);
+
+                // Show all NFTs in collection (not just listed ones)
+                const allNFTs = response.nfts || [];
+                setNfts(loadMore ? [...nfts, ...allNFTs] : allNFTs);
+
+                // Update pagination info based on all NFTs
                 setCollectionInfo({
                     total: response.total,
                     count: response.count,
@@ -138,6 +157,9 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                         }}
                     >
                         Collection by {collection.creator_address.slice(0, 6)}...{collection.creator_address.slice(-4)}
+                        <span style={{ marginLeft: '16px', fontSize: '14px', color: '#28a745' }}>
+                            📦 {nfts.length} NFTs in collection
+                        </span>
                     </p>
                 </div>
             </div>
@@ -292,7 +314,7 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                                     fontWeight: '500',
                                 }}
                             >
-                                {loading ? 'Loading...' : 'Load More NFTs'}
+                                {loading ? 'Loading...' : 'Load More Listed NFTs'}
                             </button>
                         </div>
                     )}
@@ -314,7 +336,7 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                 </>
             ) : (
                 <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                    <div style={{ fontSize: '64px', marginBottom: '16px' }}>📭</div>
+                    <div style={{ fontSize: '64px', marginBottom: '16px' }}>📦</div>
                     <h3 style={{ color: '#6c757d', margin: '0 0 8px 0' }}>No NFTs Found</h3>
                     <p style={{ color: '#6c757d', margin: 0 }}>
                         This collection doesn't have any NFTs yet, or they haven't been synced.

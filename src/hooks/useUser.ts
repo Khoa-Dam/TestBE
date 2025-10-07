@@ -17,14 +17,28 @@ export const useCurrentUser = () => {
         setLoading(true);
         setError(null);
 
+        let mounted = true;
+        let backoff = 1500;
+        const minSpinnerMs = 600;
+        const start = Date.now();
         try {
-            const userData = await getCurrentUser();
-            setUser(userData);
-        } catch (err: any) {
-            setError(err.message || "Failed to fetch user data");
-            console.error("Error fetching current user:", err);
+            while (mounted) {
+                try {
+                    const data = await getCurrentUser();
+                    if (!mounted) break;
+                    setUser(data);
+                    break;
+                } catch (e: any) {
+                    const msg = String(e?.message || "");
+                    // Keep retrying on any server/network delay while mounted
+                    await new Promise((r) => setTimeout(r, backoff));
+                    backoff = Math.min(Math.floor(backoff * 1.6) + 500, 30000);
+                }
+            }
+            const elapsed = Date.now() - start;
+            if (elapsed < minSpinnerMs) await new Promise((r) => setTimeout(r, minSpinnerMs - elapsed));
         } finally {
-            setLoading(false);
+            if (mounted) setLoading(false);
         }
     }, []);
 
@@ -50,14 +64,26 @@ export const useUserOverview = () => {
         setLoading(true);
         setError(null);
 
+        let mounted = true;
+        let backoff = 1500;
+        const minSpinnerMs = 600;
+        const start = Date.now();
         try {
-            const overviewData = await getUserOverview();
-            setOverview(overviewData);
-        } catch (err: any) {
-            setError(err.message || "Failed to fetch user overview");
-            console.error("Error fetching user overview:", err);
+            while (mounted) {
+                try {
+                    const data = await getUserOverview();
+                    if (!mounted) break;
+                    setOverview(data);
+                    break;
+                } catch (e: any) {
+                    await new Promise((r) => setTimeout(r, backoff));
+                    backoff = Math.min(Math.floor(backoff * 1.6) + 500, 30000);
+                }
+            }
+            const elapsed = Date.now() - start;
+            if (elapsed < minSpinnerMs) await new Promise((r) => setTimeout(r, minSpinnerMs - elapsed));
         } finally {
-            setLoading(false);
+            if (mounted) setLoading(false);
         }
     }, []);
 
@@ -86,14 +112,28 @@ export const useUserNfts = (page: number = 1, limit: number = 10) => {
         setLoading(true);
         setError(null);
 
+        let mounted = true;
+        let backoff = 1500;
+        const minSpinnerMs = 600;
+        const start = Date.now();
         try {
-            const nftsData = await getUserNfts(currentPage, currentLimit);
-            setNfts(nftsData);
-        } catch (err: any) {
-            setError(err.message || "Failed to fetch user NFTs");
-            console.error("Error fetching user NFTs:", err);
+            while (mounted) {
+                try {
+                    const data = await getUserNfts(currentPage, currentLimit);
+                    if (!mounted) break;
+                    setNfts(data);
+                    break;
+                } catch (e: any) {
+                    await new Promise((r) => setTimeout(r, backoff));
+                    backoff = Math.min(Math.floor(backoff * 1.6) + 500, 30000);
+                }
+            }
+            const elapsed = Date.now() - start;
+            if (elapsed < minSpinnerMs) {
+                await new Promise((r) => setTimeout(r, minSpinnerMs - elapsed));
+            }
         } finally {
-            setLoading(false);
+            if (mounted) setLoading(false);
         }
     }, [page, limit]);
 
@@ -127,3 +167,4 @@ export const useAuthStatus = () => {
 
     return { isAuthenticated: isAuth, token };
 };
+

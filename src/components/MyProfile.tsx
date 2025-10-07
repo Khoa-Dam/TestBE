@@ -1,16 +1,215 @@
 // Simple profile component - shows wallet address and user's NFTs
-import React from "react";
+import React, { useState } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUserNfts } from "../hooks/useUser";
 import { shortAddr } from "../lib.readable";
+import { aptos } from "../lib.aptosClient";
+import NFTListingModal from "./NFTListingModal";
+import { cancelNftListing, confirmTransaction } from "../api/user";
 
 interface MyProfileProps {
   onBack?: () => void;
 }
 
 export default function MyProfile({ onBack }: MyProfileProps) {
-  const { account, connected } = useWallet();
+  const { account, connected, signMessage, signAndSubmitTransaction } = useWallet();
   const { nfts, loading, error, refetch } = useUserNfts(1, 12); // Load 12 NFTs per page
+
+  // Local state for cancel listing operations
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  // Modal state
+  const [isListingModalOpen, setIsListingModalOpen] = useState(false);
+  const [selectedNftForListing, setSelectedNftForListing] = useState<any>(null);
+
+  // Modal handlers
+  const handleOpenListingModal = (nft: any) => {
+    setSelectedNftForListing(nft);
+    setIsListingModalOpen(true);
+  };
+
+  // Check if NFT is currently listed for sale.
+  // Priority: use is_listed, listed_by, listed_price, listed_at if present; fallback to history.
+  const getCurrentListing = (nft: any) => {
+    if (!nft.history || !Array.isArray(nft.history)) {
+      // No history available; rely on top-level fields if present
+      if (nft.is_listed && nft.listed_price != null) {
+        const price = typeof nft.listed_price === 'string' ? parseFloat(nft.listed_price) : nft.listed_price;
+        return {
+          transaction_type: 'list',
+          price,
+          timestamp: nft.listed_at,
+          from_address: nft.listed_by,
+        };
+      }
+      return null;
+    }
+
+    // If top-level listed flags indicate listed, use them directly
+    if (nft.is_listed && nft.listed_price != null) {
+      const price = typeof nft.listed_price === 'string' ? parseFloat(nft.listed_price) : nft.listed_price;
+      return {
+        transaction_type: 'list',
+        price,
+        timestamp: nft.listed_at,
+        from_address: nft.listed_by,
+      };
+    }
+
+    // Otherwise fallback to history: Find all listing-related transactions (list, relist, cancel, cancel_list)
+    const allListingTransactions = nft.history.filter((h: any) => {
+      const t = (h.transaction_type || '').toLowerCase();
+      return t === 'list' || t === 'relist' || t === 'cancel' || t === 'cancel_list';
+    });
+
+    if (allListingTransactions.length === 0) {
+      return null;
+    }
+
+    // Sort by timestamp (newest first)
+    allListingTransactions.sort((a: any, b: any) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    const latestTransaction = allListingTransactions[0];
+
+    // If latest transaction is cancel_list, NFT is not listed
+    const latestType = (latestTransaction.transaction_type || '').toLowerCase();
+    if (latestType === 'cancel' || latestType === 'cancel_list') {
+      console.log('🔍 NFT not listed (cancelled):', nft._id);
+      return null;
+    }
+
+    // If latest transaction is list or relist, NFT is currently listed
+    const normalizedPrice = typeof latestTransaction.price === 'string' ? parseFloat(latestTransaction.price) : latestTransaction.price;
+    console.log('🔍 Current listing for NFT:', nft._id, {
+      type: latestTransaction.transaction_type,
+      price: normalizedPrice,
+      timestamp: latestTransaction.timestamp,
+    });
+
+    return { ...latestTransaction, price: normalizedPrice };
+  };
+
+  const handleCloseListingModal = () => {
+    setIsListingModalOpen(false);
+    setSelectedNftForListing(null);
+  };
+
+  const handleListingSuccess = () => {
+    // Refresh NFT data after successful listing
+    refetch(1, 12);
+  };
+
+  const handleCancelListing = async (nft: any) => {
+    if (!confirm(`Are you sure you want to cancel the listing for "${nft.token_name}"?`)) {
+      return;
+    }
+
+    setCancelLoading(true);
+    setCancelError(null);
+
+    try {
+      const nftId = nft._id;
+      if (!nftId) {
+        throw new Error("NFT ID not found");
+      }
+
+      console.log("🚀 Cancelling NFT listing for:", nftId);
+
+      // Call API to get transaction metadata for cancellation
+      const apiResponse = await cancelNftListing(nftId);
+      console.log("✅ Cancel API Response:", apiResponse);
+
+      if (!apiResponse.success) {
+        throw new Error(apiResponse.error || "Failed to cancel listing");
+      }
+
+      if (!apiResponse.transactionMeta || !apiResponse.trackingId) {
+        throw new Error("Invalid response from server - missing transactionMeta or trackingId");
+      }
+
+      const { transactionMeta, trackingId, instructions } = apiResponse;
+      console.log("🔍 Transaction metadata:", transactionMeta);
+      console.log("📋 Tracking ID:", trackingId);
+
+      // Sign and submit transaction
+      if (!signAndSubmitTransaction) {
+        throw new Error("signAndSubmitTransaction function not available");
+      }
+
+      console.log("🚀 Calling signAndSubmitTransaction for cancel listing");
+      console.log("🔍 Raw transaction from backend:", transactionMeta.transaction);
+
+      // Normalize backend transaction into wallet adapter format
+      const rawTx: any = transactionMeta.transaction || {};
+      const rawPayload: any = rawTx.payload || rawTx;
+
+      const normalizedFunction = rawPayload.function || rawPayload.functionId || rawTx.function || rawTx.functionId;
+      const normalizedTypeArgs = rawPayload.typeArguments || rawPayload.type_arguments || rawTx.typeArguments || rawTx.type_arguments || [];
+      const normalizedArgs = rawPayload.functionArguments || rawPayload.arguments || rawTx.functionArguments || rawTx.arguments || [];
+
+      if (!normalizedFunction) {
+        throw new Error("Invalid transaction data - missing function identifier");
+      }
+
+      const cancelTxForWallet = {
+        sender: account?.address || rawTx.sender,
+        data: {
+          function: normalizedFunction,
+          typeArguments: normalizedTypeArgs,
+          functionArguments: normalizedArgs,
+        },
+      } as any;
+
+      console.log("🔧 Normalized cancel tx for wallet:", cancelTxForWallet);
+
+      // Sign and submit transaction with wallet
+      const result = await signAndSubmitTransaction(cancelTxForWallet);
+      console.log("✅ Cancel transaction signed and submitted:", result.hash);
+
+      // Step 2: Confirm transaction with backend API
+      console.log("📡 Confirming cancel transaction with API...");
+      console.log("🔍 Tracking ID:", trackingId);
+      console.log("🔍 Transaction Hash:", result.hash);
+
+      await confirmTransaction(
+        trackingId,
+        result.hash,
+        (result as any).version || 0,
+        (result as any).gas_used || 500
+      );
+      console.log("✅ NFT listing cancelled successfully on backend!");
+
+      // Step 3: Refresh NFT data to show updated status
+      console.log("🔄 Refreshing NFT data...");
+      await refetch(1, 12);
+      console.log("✅ NFT data refreshed");
+
+      // Step 4: Show success message to user
+      alert("✅ NFT listing cancelled successfully!\n\nThe NFT has been removed from the marketplace and returned to your wallet.");
+
+    } catch (err: any) {
+      console.error("❌ Cancel listing error:", err);
+
+      if (err.message?.includes("User rejected") || err.message?.includes("cancelled")) {
+        setCancelError("Transaction cancelled by user");
+        alert("❌ Cancel Listing Cancelled\n\nYou cancelled the transaction. The NFT listing remains active.");
+      } else if (err.message?.includes("NFT not found")) {
+        setCancelError("NFT không tồn tại hoặc không thể truy cập");
+      } else if (err.message?.includes("not the owner")) {
+        setCancelError("Bạn không phải là chủ sở hữu của NFT này");
+      } else if (err.message?.includes("Escrow owner not configured")) {
+        setCancelError("Hệ thống escrow chưa được cấu hình");
+      } else {
+        setCancelError(err.message || "Không thể hủy listing NFT");
+        alert("❌ Cancel Listing Failed\n\n" + (err.message || "An error occurred while cancelling the listing."));
+      }
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   // Debug logging to see actual data structure
   console.log("🔍 MyProfile Debug:", {
@@ -121,6 +320,9 @@ export default function MyProfile({ onBack }: MyProfileProps) {
               }}
             ></div>
             <p>Loading your NFTs...</p>
+            <p style={{ color: "#6c757d", marginTop: "8px", fontSize: "13px" }}>
+              This can take longer while syncing from blockchain. Please wait...
+            </p>
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
@@ -216,50 +418,69 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                       borderRadius: "10px",
                     }}
                   >
-                    <div>
-                      <strong>Total NFTs:</strong> {totalCount}
+                    <div style={{ display: "flex", gap: "20px" }}>
+                      <div>
+                        <strong>Total NFTs:</strong> {totalCount}
+                      </div>
+                      {(() => {
+                        const listedNfts = nftList.filter((nft: any) => !!getCurrentListing(nft));
+                        const unlistedNfts = nftList.filter((nft: any) => !getCurrentListing(nft));
+
+                        return (
+                          <>
+                            <div>
+                              <strong>💰 Listed:</strong> {listedNfts.length}
+                            </div>
+                            <div>
+                              <strong>📦 Unlisted:</strong> {unlistedNfts.length}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
-                    <div>
-                      <strong>Page:</strong> {currentPage} of {totalPages}
-                    </div>
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <button
-                        onClick={() =>
-                          refetch(Math.max(1, currentPage - 1), 12)
-                        }
-                        disabled={currentPage <= 1}
-                        style={{
-                          background: "#667eea",
-                          color: "white",
-                          border: "none",
-                          padding: "8px 15px",
-                          borderRadius: "5px",
-                          cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-                          opacity: currentPage <= 1 ? 0.5 : 1,
-                        }}
-                      >
-                        ← Previous
-                      </button>
-                      <button
-                        onClick={() =>
-                          refetch(Math.min(totalPages, currentPage + 1), 12)
-                        }
-                        disabled={currentPage >= totalPages}
-                        style={{
-                          background: "#667eea",
-                          color: "white",
-                          border: "none",
-                          padding: "8px 15px",
-                          borderRadius: "5px",
-                          cursor:
-                            currentPage >= totalPages
-                              ? "not-allowed"
-                              : "pointer",
-                          opacity: currentPage >= totalPages ? 0.5 : 1,
-                        }}
-                      >
-                        Next →
-                      </button>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <div>
+                        <strong>Page:</strong> {currentPage} of {totalPages}
+                      </div>
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <button
+                          onClick={() =>
+                            refetch(Math.max(1, currentPage - 1), 12)
+                          }
+                          disabled={currentPage <= 1}
+                          style={{
+                            background: "#667eea",
+                            color: "white",
+                            border: "none",
+                            padding: "8px 15px",
+                            borderRadius: "5px",
+                            cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                            opacity: currentPage <= 1 ? 0.5 : 1,
+                          }}
+                        >
+                          ← Previous
+                        </button>
+                        <button
+                          onClick={() =>
+                            refetch(Math.min(totalPages, currentPage + 1), 12)
+                          }
+                          disabled={currentPage >= totalPages}
+                          style={{
+                            background: "#667eea",
+                            color: "white",
+                            border: "none",
+                            padding: "8px 15px",
+                            borderRadius: "5px",
+                            cursor:
+                              currentPage >= totalPages
+                                ? "not-allowed"
+                                : "pointer",
+                            opacity: currentPage >= totalPages ? 0.5 : 1,
+                          }}
+                        >
+                          Next →
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -274,7 +495,7 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                   >
                     {nftList.map((nft: any, index: number) => (
                       <div
-                        key={nft._id || nft.token_data_id || index}
+                        key={nft._id || index}
                         style={{
                           background: "white",
                           border: "1px solid #e0e0e0",
@@ -303,9 +524,27 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                           {nft.image || nft.token_uri ? "" : "🖼️ No Image"}
                         </div>
                         <div style={{ padding: "15px" }}>
-                          <h4 style={{ margin: "0 0 8px 0", fontSize: "16px" }}>
+                          <h4 style={{ margin: "0 0 4px 0", fontSize: "16px" }}>
                             {nft.name || nft.token_name || `NFT #${index + 1}`}
                           </h4>
+                          {/* Collection Name */}
+                          {(nft.collection_name || nft.collection?.name || nft.collection_title) && (
+                            <div
+                              style={{
+                                margin: "0 0 8px 0",
+                                fontSize: "12px",
+                                color: "#6c757d",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                              }}
+                            >
+                              <span style={{ fontWeight: 600, color: "#495057" }}>Collection:</span>
+                              <span>
+                                {nft.collection_name || nft.collection?.name || nft.collection_title}
+                              </span>
+                            </div>
+                          )}
                           <p
                             style={{
                               color: "#666",
@@ -332,7 +571,7 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                 <span style={{ color: "#28a745" }}>Synced</span>
                               </div>
                             )}
-                            {nft.token_data_id && (
+                            {nft._id && (
                               <div
                                 style={{
                                   marginBottom: "5px",
@@ -341,10 +580,44 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                   whiteSpace: "nowrap",
                                 }}
                               >
-                                🔗 {nft.token_data_id.slice(0, 20)}...
+                                🔗 {nft._id.slice(0, 20)}...
                               </div>
                             )}
+
+                            {/* Listing Status */}
+                            {(() => {
+                              const currentListing = getCurrentListing(nft);
+
+                              if (currentListing) {
+                                console.log('💰 Displaying current listing:', {
+                                  nftId: nft._id,
+                                  type: currentListing.transaction_type,
+                                  price: currentListing.price,
+                                  timestamp: currentListing.timestamp
+                                });
+
+                                return (
+                                  <div
+                                    style={{
+                                      marginBottom: "5px",
+                                      padding: "4px 8px",
+                                      background: "#fff3e0",
+                                      borderRadius: "4px",
+                                      border: "1px solid #ff9800",
+                                    }}
+                                  >
+                                    💰{" "}
+                                    <span style={{ color: "#e65100", fontWeight: "bold" }}>
+                                      {currentListing.transaction_type === 'list' ? 'Listed' : 'Relisted'}: {currentListing.price?.toLocaleString()} APT
+                                    </span>
+                                  </div>
+                                );
+                              }
+
+                              return null;
+                            })()}
                           </div>
+
                           {nft.attributes && nft.attributes.length > 0 && (
                             <div style={{ marginTop: "10px" }}>
                               {nft.attributes
@@ -367,6 +640,71 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                 ))}
                             </div>
                           )}
+
+                          {/* Action Buttons */}
+                          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                            {(() => {
+                              const currentListing = getCurrentListing(nft);
+                              const isListed = !!currentListing;
+
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenListingModal(nft)}
+                                    style={{
+                                      flex: 1,
+                                      padding: "8px 12px",
+                                      background: isListed ? "#ff9800" : "#667eea",
+                                      color: "white",
+                                      border: "none",
+                                      borderRadius: "5px",
+                                      cursor: "pointer",
+                                      fontSize: "12px",
+                                      transition: "background 0.2s",
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.background = isListed ? "#f57c00" : "#5a6fd8";
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.background = isListed ? "#ff9800" : "#667eea";
+                                    }}
+                                  >
+                                    {isListed ? "🔄 Update Price" : "📈 List for Sale"}
+                                  </button>
+
+                                  {isListed && (
+                                    <button
+                                      onClick={() => handleCancelListing(nft)}
+                                      disabled={cancelLoading}
+                                      style={{
+                                        padding: "8px 12px",
+                                        background: cancelLoading ? "#ccc" : "#dc3545",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "5px",
+                                        cursor: cancelLoading ? "not-allowed" : "pointer",
+                                        fontSize: "12px",
+                                        transition: "background 0.2s",
+                                      }}
+                                      onMouseOver={(e) => {
+                                        if (!cancelLoading) {
+                                          e.currentTarget.style.background = "#c82333";
+                                        }
+                                      }}
+                                      onMouseOut={(e) => {
+                                        if (!cancelLoading) {
+                                          e.currentTarget.style.background = "#dc3545";
+                                        }
+                                      }}
+                                      title="Cancel this NFT listing"
+                                    >
+                                      {cancelLoading ? "⏳" : "❌ Cancel"}
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -418,6 +756,17 @@ export default function MyProfile({ onBack }: MyProfileProps) {
           </div>
         )}
       </div>
+
+      {/* NFT Listing Modal */}
+      <NFTListingModal
+        nft={selectedNftForListing}
+        isOpen={isListingModalOpen}
+        onClose={handleCloseListingModal}
+        onSuccess={handleListingSuccess}
+        currentListing={selectedNftForListing ? getCurrentListing(selectedNftForListing) : null}
+        signMessage={signMessage}
+        walletAddress={account?.address || ""}
+      />
     </div>
   );
 }

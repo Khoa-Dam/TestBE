@@ -125,8 +125,7 @@ export default function WorkflowManager({
           `❌ Transaction failed: Type mismatch error - Arguments have incorrect types`
         );
         addLog(
-          `💡 Debugging tip: Check argument #${
-            errorMessage.match(/argument (\d+)/)?.[1] || "?"
+          `💡 Debugging tip: Check argument #${errorMessage.match(/argument (\d+)/)?.[1] || "?"
           }`
         );
       } else if (errorMessage.includes("rejected")) {
@@ -223,8 +222,7 @@ export default function WorkflowManager({
           }
         } catch (viewError) {
           addLog(
-            `⚠️ View function verification failed: ${
-              (viewError as Error).message
+            `⚠️ View function verification failed: ${(viewError as Error).message
             }`
           );
         }
@@ -301,8 +299,7 @@ export default function WorkflowManager({
           addLog(`⚠️ Warning: No configuration found in draft`);
         } else {
           addLog(
-            `✅ Configuration found in draft: ${
-              Object.keys(updatedDraft.config).length
+            `✅ Configuration found in draft: ${Object.keys(updatedDraft.config).length
             } parameters`
           );
         }
@@ -328,8 +325,7 @@ export default function WorkflowManager({
           addLog(`✅ Collection still exists after config: ${exists}`);
         } catch (viewError) {
           addLog(
-            `⚠️ Configuration verification failed: ${
-              (viewError as Error).message
+            `⚠️ Configuration verification failed: ${(viewError as Error).message
             }`
           );
         }
@@ -400,12 +396,8 @@ export default function WorkflowManager({
       addLog(`🎨 Đã mint: ${result.metadata.name}`);
       addLog(`📍 Token Index: ${result.tokenIndex}`);
 
-      // Cập nhật tiến trình
-      const progress = await workflow.getProgress();
-      setMintProgress(progress);
-      addLog(
-        `📊 Tiến trình: ${progress.mintedCount}/${progress.totalTokens} (${progress.progress}%)`
-      );
+      // Cập nhật tiến trình - temporarily disabled
+      addLog(`📊 Tiến trình cập nhật tạm thời bị vô hiệu hóa`);
     } catch (error) {
       console.error("Lỗi mint:", error);
 
@@ -424,11 +416,11 @@ export default function WorkflowManager({
     }
   };
 
-  // Load mint progress
+  // Load mint progress - temporarily disabled
   const loadMintProgress = async () => {
     try {
-      const progress = await workflow.getProgress();
-      setMintProgress(progress);
+      // Progress loading temporarily disabled
+      addLog(`📊 Mint progress loading temporarily disabled`);
     } catch (error) {
       addLog(`❌ Failed to load progress: ${(error as Error).message}`);
     }
@@ -506,15 +498,15 @@ export default function WorkflowManager({
                 draftData.status === "deploy_pending"
                   ? "#ffa500"
                   : draftData.status === "onchain_created"
-                  ? "#28a745"
-                  : "#333",
+                    ? "#28a745"
+                    : "#333",
             }}
           >
             {draftData.status === "deploy_pending"
               ? "🚀 Deploy Pending"
               : draftData.status === "onchain_created"
-              ? "✅ On-chain Created"
-              : draftData.status}
+                ? "✅ On-chain Created"
+                : draftData.status}
           </span>
           <strong>Admin:</strong> <span>{draftData.adminAddr}</span>
           <strong>Wallet:</strong>
@@ -522,9 +514,9 @@ export default function WorkflowManager({
             <span>
               {account
                 ? `${account.address.substring(
-                    0,
-                    6
-                  )}...${account.address.substring(account.address.length - 4)}`
+                  0,
+                  6
+                )}...${account.address.substring(account.address.length - 4)}`
                 : "Not connected"}
             </span>
             <button
