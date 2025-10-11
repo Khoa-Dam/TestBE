@@ -84,6 +84,22 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
 
                 // Show all NFTs in collection (not just listed ones)
                 const allNFTs = response.nfts || [];
+
+                // Debug: Check first NFT data structure
+                if (allNFTs.length > 0) {
+                    const firstNft = allNFTs[0] as any;
+                    console.log('🔍 CollectionDetail First NFT Debug:', {
+                        nft: firstNft,
+                        hasBids: firstNft.has_bids,
+                        topBidAmount: firstNft.top_bid_amount,
+                        topBidder: firstNft.top_bidder,
+                        bids: firstNft.bids,
+                        current_owner: firstNft.current_owner,
+                        current_token_ownerships: firstNft.current_token_ownerships,
+                        isCurrentOwner: firstNft.isCurrentOwner
+                    });
+                }
+
                 setNfts(loadMore ? [...nfts, ...allNFTs] : allNFTs);
 
                 // Update pagination info based on all NFTs
@@ -290,6 +306,14 @@ export const CollectionDetail: React.FC<CollectionDetailProps> = ({
                                 key={nft._id}
                                 nft={nft}
                                 onClick={onNftClick ? () => onNftClick(nft) : undefined}
+                                onList={() => {
+                                    console.log('Listing action completed, refreshing NFTs...');
+                                    fetchNFTs();
+                                }}
+                                onBidSuccess={() => {
+                                    console.log('Bid action completed, refreshing NFTs...');
+                                    fetchNFTs();
+                                }}
                             />
                         ))}
                     </div>

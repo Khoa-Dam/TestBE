@@ -269,3 +269,107 @@ export const clearAuthData = () => {
   console.log("🔐 Authentication data cleared");
 };
 
+// ========================================================================
+// BID APIs
+// ========================================================================
+
+// Place bid on NFT - returns transaction metadata for signing
+export const placeBid = async (nftId: string, amount: number, expiry?: number, currency: string = 'APT') => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    throw new Error("No authentication token found");
+  }
+
+  const requestData = {
+    amount,
+    expiry: expiry || 0,
+    currency,
+  };
+
+  console.log(`🚀 Place Bid API - NFT ID: ${nftId}`);
+  console.log("📦 Request data:", requestData);
+  console.log("🔑 Token:", token.substring(0, 20) + "...");
+
+  const response = await fetch(`${API_BASE_URL}/nft/${nftId}/bid`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestData),
+  });
+
+  console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("❌ API Error response:", errorText);
+    throw new Error(`Failed to place bid: ${response.status} ${errorText}`);
+  }
+
+  const responseData = await response.json();
+  console.log("✅ Place Bid API Response:", responseData);
+  return responseData;
+};
+
+// Cancel bid on NFT - returns transaction metadata for signing
+export const cancelBid = async (nftId: string) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    throw new Error("No authentication token found");
+  }
+
+  console.log(`🚀 Cancel Bid API - NFT ID: ${nftId}`);
+  console.log("🔑 Token:", token.substring(0, 20) + "...");
+
+  const response = await fetch(`${API_BASE_URL}/nft/${nftId}/bid/cancel`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("❌ API Error response:", errorText);
+    throw new Error(`Failed to cancel bid: ${response.status} ${errorText}`);
+  }
+
+  const responseData = await response.json();
+  console.log("✅ Cancel Bid API Response:", responseData);
+  return responseData;
+};
+
+// Accept bid on NFT - returns transaction metadata for signing
+export const acceptBid = async (nftId: string, bidderAddress: string) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    throw new Error("No authentication token found");
+  }
+
+  console.log(`🚀 Accept Bid API - NFT ID: ${nftId}, Bidder: ${bidderAddress}`);
+  console.log("🔑 Token:", token.substring(0, 20) + "...");
+
+  const response = await fetch(`${API_BASE_URL}/nft/${nftId}/bid/${bidderAddress}/accept`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("❌ API Error response:", errorText);
+    throw new Error(`Failed to accept bid: ${response.status} ${errorText}`);
+  }
+
+  const responseData = await response.json();
+  console.log("✅ Accept Bid API Response:", responseData);
+  return responseData;
+};
+
+

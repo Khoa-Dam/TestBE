@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { buyNft, confirmTransaction } from '../api/user';
 import { NFT } from '../api/workflow';
+import NFTBidModal from './NFTBidModal';
+import NFTListingModal from './NFTListingModal';
 
 interface NftCardProps {
     nft: any; // Using any for now since NFT type doesn't include history
@@ -9,11 +11,50 @@ interface NftCardProps {
     showRelistButton?: boolean;
     onBuy?: (nft: any) => void;
     onRelist?: (nft: any) => void;
+    onList?: (nft: any) => void;
+    onBidSuccess?: () => void;
 }
 
-export const NftCard: React.FC<NftCardProps> = ({ nft, onClick, showRelistButton, onBuy, onRelist }) => {
-    const { account, signAndSubmitTransaction } = useWallet();
+export const NftCard: React.FC<NftCardProps> = ({ nft, onClick, showRelistButton, onBuy, onRelist, onList, onBidSuccess }) => {
+    const { account, signAndSubmitTransaction, signMessage } = useWallet();
     const [buyLoading, setBuyLoading] = useState(false);
+    const [isBidModalOpen, setIsBidModalOpen] = useState(false);
+    const [isListingModalOpen, setIsListingModalOpen] = useState(false);
+
+    // Check if current user is the owner of this NFT
+    const currentUserAddress = account?.address || '';
+    let isOwner = false;
+
+    // Support multiple owner field formats
+    if (nft.current_owner) {
+        // Direct owner field
+        isOwner = nft.current_owner.toLowerCase() === currentUserAddress.toLowerCase();
+    } else if (nft.current_token_ownerships && Array.isArray(nft.current_token_ownerships)) {
+        // Array of ownership records
+        isOwner = nft.current_token_ownerships.some((ownership: any) =>
+            ownership.owner_address?.toLowerCase() === currentUserAddress.toLowerCase()
+        );
+    } else if (nft.isCurrentOwner) {
+        // Boolean flag
+        isOwner = nft.isCurrentOwner === true;
+    }
+
+    // Debug logging for owner detection
+    console.log("🔍 NftCard Owner Debug:", {
+        nftName: nft.token_name,
+        currentUserAddress: currentUserAddress,
+        nftCurrentOwner: nft.current_owner,
+        currentTokenOwnerships: nft.current_token_ownerships,
+        currentTokenOwnershipsDetails: nft.current_token_ownerships?.map((o: any) => ({
+            owner_address: o.owner_address,
+            owned_since: o.owned_since
+        })),
+        isCurrentOwner: nft.isCurrentOwner,
+        isOwner: isOwner,
+        hasBids: nft.has_bids,
+        topBidAmount: nft.top_bid_amount,
+        bids: nft.bids
+    });
 
     const formatPriceAPT = (raw: any) => {
         const num = typeof raw === 'string' ? parseFloat(raw) : raw;
@@ -344,6 +385,115 @@ export const NftCard: React.FC<NftCardProps> = ({ nft, onClick, showRelistButton
                     </span>
                 </div>
 
+                {/* Listing Status Badge */}
+                {(() => {
+                    // Check if NFT is listed using same logic as action buttons
+                    let currentListing: any = null;
+                    if (nft.is_listed && nft.listed_price != null) {
+                        const price = typeof nft.listed_price === 'string' ? parseFloat(nft.listed_price) : nft.listed_price;
+                        currentListing = {
+                            transaction_type: 'list',
+                            price,
+                            timestamp: nft.listed_at,
+                            from_address: nft.listed_by,
+                        };
+                    } else {
+                        const timeline = Array.isArray(nft.history) ? nft.history.slice() : [];
+                        const sorted = timeline.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                        const latest = sorted.find((h: any) => {
+                            const t = (h.transaction_type || '').toLowerCase();
+                            return t === 'list' || t === 'relist' || t === 'cancel' || t === 'cancel_list';
+                        });
+                        if (latest) {
+                            const t = (latest.transaction_type || '').toLowerCase();
+                            if (t === 'list' || t === 'relist') {
+                                const normalizedPrice = typeof latest.price === 'string' ? parseFloat(latest.price) : latest.price;
+                                currentListing = { ...latest, price: normalizedPrice };
+                            }
+                        }
+                    }
+
+                    if (currentListing) {
+                        return (
+                            <div
+                                style={{
+                                    marginTop: '8px',
+                                    padding: '4px 8px',
+                                    background: '#fff3e0',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ff9800',
+                                    fontSize: '12px',
+                                }}
+                            >
+                                💰{' '}
+                                <span style={{ color: '#e65100', fontWeight: 'bold' }}>
+                                    {currentListing.transaction_type === 'list' ? 'Listed' : 'Relisted'}: {currentListing.price?.toLocaleString()} APT
+                                </span>
+                            </div>
+                        );
+                    }
+
+                    return null;
+                })()}
+
+                {/* Bid Info */}
+                {(() => {
+                    // Use top-level bid fields if available, fallback to bids array
+                    const hasBids = nft.has_bids || (nft.bids && nft.bids.length > 0) || nft.top_bid_amount;
+                    if (hasBids) {
+                        let topBidAmount = null;
+                        let topBidder = null;
+
+                        // Priority 1: Use top-level fields if available
+                        if (nft.top_bid_amount && nft.top_bidder) {
+                            topBidAmount = nft.top_bid_amount;
+                            topBidder = nft.top_bidder;
+                        }
+                        // Priority 2: Use bids array
+                        else if (nft.bids && nft.bids.length > 0) {
+                            const activeBids = nft.bids.filter((bid: any) => bid.status === 'active');
+                            const topBid = activeBids.sort((a: any, b: any) => parseFloat(b.amount) - parseFloat(a.amount))[0];
+                            if (topBid) {
+                                topBidAmount = topBid.amount;
+                                topBidder = topBid.bidder_address;
+                            }
+                        }
+
+                        if (topBidAmount) {
+                            return (
+                                <div
+                                    style={{
+                                        marginTop: '8px',
+                                        padding: '6px 8px',
+                                        background: '#e3f2fd',
+                                        borderRadius: '4px',
+                                        border: '1px solid #2196f3',
+                                        fontSize: '12px',
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        🎯{' '}
+                                        <span style={{ color: '#1976d2', fontWeight: 'bold' }}>
+                                            Top Bid: {topBidAmount} APT
+                                        </span>
+                                    </div>
+                                    {topBidder && (
+                                        <div style={{
+                                            color: '#666',
+                                            fontSize: '11px',
+                                            marginTop: '2px',
+                                            fontFamily: 'monospace'
+                                        }}>
+                                            by {topBidder.slice(0, 6)}...{topBidder.slice(-4)}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
+                    }
+                    return null;
+                })()}
+
                 {/* Action Buttons */}
                 {(() => {
                     // Prefer top-level listed fields; fallback to history
@@ -372,9 +522,42 @@ export const NftCard: React.FC<NftCardProps> = ({ nft, onClick, showRelistButton
                         }
                     }
 
-                    // Check if current user is the owner of this NFT
-                    const currentUserAddress = account?.address || '';
-                    const isOwner = nft.current_owner === currentUserAddress;
+                    // Check if user has active bid
+                    const userBid = nft.bids ? nft.bids.find((bid: any) => bid.bidder_address === currentUserAddress && bid.status === 'active') : null;
+
+                    // Check if owner has bids to accept (PRIORITY: show this first for owners with bids)
+                    const hasActiveBids = nft.bids && nft.bids.length > 0 && nft.bids.some((bid: any) => bid.status === 'active');
+                    if (isOwner && hasActiveBids) {
+                        return (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsBidModalOpen(true);
+                                }}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    background: '#28a745',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    marginTop: '12px',
+                                    transition: 'background 0.2s',
+                                }}
+                                onMouseOver={(e) => {
+                                    e.currentTarget.style.background = '#218838';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.currentTarget.style.background = '#28a745';
+                                }}
+                            >
+                                🎯 Accept Bid
+                            </button>
+                        );
+                    }
 
                     if (currentListing) {
                         // NFT is listed for sale
@@ -410,47 +593,181 @@ export const NftCard: React.FC<NftCardProps> = ({ nft, onClick, showRelistButton
                                 </button>
                             );
                         } else if (!isOwner) {
-                            // Others can buy
+                            // Others can buy or bid
+                            return (
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleBuy();
+                                        }}
+                                        disabled={buyLoading}
+                                        style={{
+                                            flex: 1,
+                                            padding: '10px',
+                                            background: buyLoading ? '#ccc' : '#28a745',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            cursor: buyLoading ? 'not-allowed' : 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: '600',
+                                            transition: 'background 0.2s',
+                                        }}
+                                        onMouseOver={(e) => {
+                                            if (!buyLoading) {
+                                                e.currentTarget.style.background = '#218838';
+                                            }
+                                        }}
+                                        onMouseOut={(e) => {
+                                            if (!buyLoading) {
+                                                e.currentTarget.style.background = '#28a745';
+                                            }
+                                        }}
+                                    >
+                                        {buyLoading ? '⏳' : '💰 Buy'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsBidModalOpen(true);
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            padding: '10px',
+                                            background: '#007bff',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: '600',
+                                            transition: 'background 0.2s',
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.background = '#0056b3';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.background = '#007bff';
+                                        }}
+                                    >
+                                        🎯 {isOwner ? 'Accept Bid' : (userBid ? 'My Bid' : 'Bid')}
+                                    </button>
+                                </div>
+                            );
+                        }
+                    } else {
+                        // NFT is not listed
+                        if (isOwner) {
+                            // Owner can list NFT
                             return (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleBuy();
+                                        setIsListingModalOpen(true);
                                     }}
-                                    disabled={buyLoading}
                                     style={{
                                         width: '100%',
                                         padding: '10px',
-                                        background: buyLoading ? '#ccc' : '#28a745',
+                                        background: '#667eea',
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: '6px',
-                                        cursor: buyLoading ? 'not-allowed' : 'pointer',
+                                        cursor: 'pointer',
                                         fontSize: '14px',
                                         fontWeight: '600',
                                         marginTop: '12px',
                                         transition: 'background 0.2s',
                                     }}
                                     onMouseOver={(e) => {
-                                        if (!buyLoading) {
-                                            e.currentTarget.style.background = '#218838';
-                                        }
+                                        e.currentTarget.style.background = '#5a6fd8';
                                     }}
                                     onMouseOut={(e) => {
-                                        if (!buyLoading) {
-                                            e.currentTarget.style.background = '#28a745';
-                                        }
+                                        e.currentTarget.style.background = '#667eea';
                                     }}
                                 >
-                                    {buyLoading ? '⏳ Buying...' : `💰 Buy for ${formatPriceAPT(currentListing.price)} APT`}
+                                    📈 List for Sale
+                                </button>
+                            );
+                        } else {
+                            // Others can bid on unlisted NFT
+                            return (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsBidModalOpen(true);
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        background: '#007bff',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: '600',
+                                        marginTop: '12px',
+                                        transition: 'background 0.2s',
+                                    }}
+                                    onMouseOver={(e) => {
+                                        e.currentTarget.style.background = '#0056b3';
+                                    }}
+                                    onMouseOut={(e) => {
+                                        e.currentTarget.style.background = '#007bff';
+                                    }}
+                                >
+                                    🎯 {userBid ? 'My Bid' : 'Place Bid'}
                                 </button>
                             );
                         }
                     }
 
+
                     return null;
                 })()}
             </div>
+
+            {/* Bid Modal */}
+            <NFTBidModal
+                nft={nft}
+                isOpen={isBidModalOpen}
+                onClose={() => setIsBidModalOpen(false)}
+                onSuccess={() => {
+                    onBidSuccess?.();
+                    setIsBidModalOpen(false);
+                }}
+                currentBids={nft.bids || []}
+                walletAddress={account?.address || ''}
+                initialAction={isOwner ? 'accept' : 'place'}
+            />
+
+            {/* Listing Modal */}
+            <NFTListingModal
+                nft={nft}
+                isOpen={isListingModalOpen}
+                onClose={() => setIsListingModalOpen(false)}
+                onSuccess={() => {
+                    onList?.(nft);
+                    setIsListingModalOpen(false);
+                }}
+                currentListing={(() => {
+                    // Get current listing using same logic as action buttons
+                    let currentListing: any = null;
+                    if (nft.is_listed && nft.listed_price != null) {
+                        const price = typeof nft.listed_price === 'string' ? parseFloat(nft.listed_price) : nft.listed_price;
+                        currentListing = {
+                            transaction_type: 'list',
+                            price,
+                            timestamp: nft.listed_at,
+                            from_address: nft.listed_by,
+                        };
+                    }
+                    return currentListing;
+                })()}
+                signMessage={signMessage}
+                walletAddress={account?.address || ''}
+            />
         </div>
     );
 };

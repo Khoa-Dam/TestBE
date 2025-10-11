@@ -3,8 +3,8 @@ import React, { useState } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUserNfts } from "../hooks/useUser";
 import { shortAddr } from "../lib.readable";
-import { aptos } from "../lib.aptosClient";
 import NFTListingModal from "./NFTListingModal";
+import NFTBidModal from "./NFTBidModal";
 import { cancelNftListing, confirmTransaction } from "../api/user";
 
 interface MyProfileProps {
@@ -22,11 +22,23 @@ export default function MyProfile({ onBack }: MyProfileProps) {
   // Modal state
   const [isListingModalOpen, setIsListingModalOpen] = useState(false);
   const [selectedNftForListing, setSelectedNftForListing] = useState<any>(null);
+  const [isBidModalOpen, setIsBidModalOpen] = useState(false);
+  const [selectedNftForBid, setSelectedNftForBid] = useState<any>(null);
 
   // Modal handlers
   const handleOpenListingModal = (nft: any) => {
     setSelectedNftForListing(nft);
     setIsListingModalOpen(true);
+  };
+
+  const handleOpenBidModal = (nft: any) => {
+    setSelectedNftForBid(nft);
+    setIsBidModalOpen(true);
+  };
+
+  const handleBidSuccess = () => {
+    // Refresh NFTs after successful bid action
+    refetch();
   };
 
   // Check if NFT is currently listed for sale.
@@ -307,28 +319,10 @@ export default function MyProfile({ onBack }: MyProfileProps) {
         </h2>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "40px" }}>
-            <div
-              style={{
-                width: "40px",
-                height: "40px",
-                border: "4px solid #f3f3f3",
-                borderTop: "4px solid #667eea",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-                margin: "0 auto 20px auto",
-              }}
-            ></div>
-            <p>Loading your NFTs...</p>
-            <p style={{ color: "#6c757d", marginTop: "8px", fontSize: "13px" }}>
-              This can take longer while syncing from blockchain. Please wait...
-            </p>
-            <style>{`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            `}</style>
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+            <h2>Loading NFTs...</h2>
+            <p>Please wait while we fetch your NFTs from the blockchain.</p>
           </div>
         ) : error ? (
           <div
@@ -701,6 +695,32 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                       {cancelLoading ? "⏳" : "❌ Cancel"}
                                     </button>
                                   )}
+
+                                  {/* Accept Bid Button - Only for owners with active bids */}
+                                  {nft.has_bids && (
+                                    <button
+                                      onClick={() => handleOpenBidModal(nft)}
+                                      style={{
+                                        padding: "8px 12px",
+                                        background: "#28a745",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "5px",
+                                        cursor: "pointer",
+                                        fontSize: "12px",
+                                        transition: "background 0.2s",
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.background = "#218838";
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.background = "#28a745";
+                                      }}
+                                      title="Accept bid for this NFT"
+                                    >
+                                      🎯 Accept Bid
+                                    </button>
+                                  )}
                                 </>
                               );
                             })()}
@@ -767,6 +787,21 @@ export default function MyProfile({ onBack }: MyProfileProps) {
         signMessage={signMessage}
         walletAddress={account?.address || ""}
       />
+
+      {/* NFT Bid Modal */}
+      {selectedNftForBid && (
+        <NFTBidModal
+          nft={selectedNftForBid}
+          isOpen={isBidModalOpen}
+          onClose={() => {
+            setIsBidModalOpen(false);
+            setSelectedNftForBid(null);
+          }}
+          onSuccess={handleBidSuccess}
+          walletAddress={account?.address || ""}
+          initialAction="accept"
+        />
+      )}
     </div>
   );
 }
