@@ -500,23 +500,48 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                         }}
                       >
                         <div
-                          style={{
-                            height: "200px",
-                            background:
-                              nft.image || nft.token_uri
-                                ? `url(${nft.image || nft.token_uri})`
-                                : "#f0f0f0",
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#666",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {nft.image || nft.token_uri ? "" : "🖼️ No Image"}
-                        </div>
+                              style={{
+                                height: "200px",
+                                background: (() => {
+                                  // Prefer nft.image, fallback to nft.token_uri
+                                  const raw = nft.image || nft.token_uri;
+                                  if (!raw) return "#f0f0f0";
+
+                                  try {
+                                    let url = String(raw);
+
+                                    // Some token_uri values may be ipfs://... or contain spaces/commas
+                                    // Normalize ipfs:// to gateway, and encode spaces
+                                    if (url.startsWith("ipfs://")) {
+                                      url = url.replace(/^ipfs:\/\//, "https://ipfs.io/ipfs/");
+                                    }
+
+                                    // Trim and encode only the path portion to preserve query/hash
+                                    const parts = url.split("/");
+                                    // Encode segments that contain spaces or other unsafe chars
+                                    for (let i = 3; i < parts.length; i++) {
+                                      parts[i] = encodeURIComponent(decodeURIComponent(parts[i] || ""));
+                                    }
+                                    const encoded = parts.join("/");
+
+                                    // Return quoted url(...) so CSS handles spaces
+                                    return `url("${encoded}")`;
+                                  } catch (e) {
+                                    console.debug("MyProfile: failed to normalize image url for", nft._id, raw, e);
+                                    return "#f0f0f0";
+                                  }
+                                })(),
+                                backgroundSize: "cover",
+                                backgroundPosition: "center",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#666",
+                                fontSize: "14px",
+                              }}
+                            >
+                              {nft.image || nft.token_uri ? "" : "🖼️ No Image"}
+                            </div>
                         <div style={{ padding: "15px" }}>
                           <h4 style={{ margin: "0 0 4px 0", fontSize: "16px" }}>
                             {nft.name || nft.token_name || `NFT #${index + 1}`}

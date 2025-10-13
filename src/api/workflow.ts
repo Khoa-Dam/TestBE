@@ -16,7 +16,7 @@ import { API_BASE_URL, apiCall } from "./config";
 // NFT COLLECTION WORKFLOW CLASS
 // ========================================================================
 export class NFTCollectionWorkflow {
-  constructor(public draftId: string) { }
+  constructor(public draftId: string) {}
 
   // Step 2: Publish IPFS
   async publishIPFS(startIndex = 0) {
@@ -172,10 +172,31 @@ export class NFTCollectionWorkflow {
       // Thêm độ trễ nhỏ để chuẩn bị UI
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Lấy thông tin mint từ API
+      // Lấy thông tin mint từ API - chọn endpoint theo loại collection
       let data;
       try {
-        data = await randomMint(this.draftId, payerAddr, toAddr);
+        // Use collection_type when available, fallback to manifest presence
+        const dAny = draft as any;
+        const collectionTypeField =
+          dAny.collection_type ||
+          dAny.config?.collection_type ||
+          dAny.collection?.type ||
+          dAny.collection?.collection_type;
+        const isNonManifest =
+          collectionTypeField === "non-manifest" || !draft.manifest;
+        console.debug(
+          "workflow.randomMint: collectionTypeField, hasManifest, isNonManifest ->",
+          { collectionTypeField, hasManifest: !!draft.manifest, isNonManifest }
+        );
+        if (isNonManifest) {
+          data = await (
+            await import("./signing")
+          ).mintNonManifest(this.draftId, payerAddr, toAddr);
+        } else {
+          data = await (
+            await import("./signing")
+          ).randomMint(this.draftId, payerAddr, toAddr);
+        }
         console.log("Dữ liệu giao dịch mint:", data);
       } catch (mintError) {
         console.error("Lỗi khi tạo giao dịch mint:", mintError);
@@ -218,7 +239,8 @@ export class NFTCollectionWorkflow {
         console.log("✅ NFT marked as minted and sync initiated");
       } catch (syncError) {
         console.warn(
-          `⚠️ Auto-sync failed, falling back to manual mark: ${(syncError as Error).message
+          `⚠️ Auto-sync failed, falling back to manual mark: ${
+            (syncError as Error).message
           }`
         );
         // Fallback to manual mark if sync fails
@@ -227,7 +249,8 @@ export class NFTCollectionWorkflow {
           console.log("✅ NFT marked as minted (manual fallback)");
         } catch (markError) {
           console.warn(
-            `Cảnh báo: Không thể đánh dấu token đã mint, nhưng mint đã thành công: ${(markError as Error).message
+            `Cảnh báo: Không thể đánh dấu token đã mint, nhưng mint đã thành công: ${
+              (markError as Error).message
             }`
           );
         }
@@ -420,9 +443,17 @@ export interface NFTsResponse {
 /**
  * Get collections from indexer API
  */
-export async function getCollections(limit = 50, offset = 0): Promise<CollectionsResponse> {
+export async function getCollections(
+  limit = 50,
+  offset = 0
+): Promise<CollectionsResponse> {
   const url = `${API_BASE_URL}/indexer/collections?limit=${limit}&offset=${offset}`;
-  console.log('getCollections: Calling API with limit:', limit, 'offset:', offset);
+  console.log(
+    "getCollections: Calling API with limit:",
+    limit,
+    "offset:",
+    offset
+  );
 
   try {
     const response = await apiCall(url);
@@ -431,14 +462,18 @@ export async function getCollections(limit = 50, offset = 0): Promise<Collection
     }
 
     const data = await response.json();
-    console.log('getCollections: Raw API response:', data);
+    console.log("getCollections: Raw API response:", data);
 
     // Validate response structure
     if (!data.success || !Array.isArray(data.collections)) {
       throw new Error("Invalid response format from collections API");
     }
 
-    console.log('getCollections: Successfully parsed response with', data.collections.length, 'collections');
+    console.log(
+      "getCollections: Successfully parsed response with",
+      data.collections.length,
+      "collections"
+    );
     return data;
   } catch (error) {
     console.error("Error fetching collections:", error);
@@ -449,27 +484,41 @@ export async function getCollections(limit = 50, offset = 0): Promise<Collection
 /**
  * Get mintable collections from API
  */
-export async function getMintableCollections(limit = 50, offset = 0): Promise<MintableCollectionsResponse> {
+export async function getMintableCollections(
+  limit = 50,
+  offset = 0
+): Promise<MintableCollectionsResponse> {
   const url = `${API_BASE_URL}/collections/mintable?limit=${limit}&offset=${offset}`;
-  console.log('getMintableCollections: Calling API with limit:', limit, 'offset:', offset);
+  console.log(
+    "getMintableCollections: Calling API with limit:",
+    limit,
+    "offset:",
+    offset
+  );
 
   try {
     const response = await apiCall(url);
     if (!response.ok) {
       // If API fails, return mock data for testing
-      console.warn("API not available, using mock data for mintable collections");
+      console.warn(
+        "API not available, using mock data for mintable collections"
+      );
       return getMockMintableCollections(limit, offset);
     }
 
     const data = await response.json();
-    console.log('getMintableCollections: Raw API response:', data);
+    console.log("getMintableCollections: Raw API response:", data);
 
     // Validate response structure
     if (!Array.isArray(data.drafts)) {
       throw new Error("Invalid response format from mintable collections API");
     }
 
-    console.log('getMintableCollections: Successfully parsed response with', data.drafts.length, 'mintable collections');
+    console.log(
+      "getMintableCollections: Successfully parsed response with",
+      data.drafts.length,
+      "mintable collections"
+    );
     return data;
   } catch (error) {
     console.error("Error fetching mintable collections:", error);
@@ -481,9 +530,11 @@ export async function getMintableCollections(limit = 50, offset = 0): Promise<Mi
 /**
  * Get collection details by ID
  */
-export async function getCollectionDetails(draftId: string): Promise<CollectionDetailsResponse> {
+export async function getCollectionDetails(
+  draftId: string
+): Promise<CollectionDetailsResponse> {
   const url = `${API_BASE_URL}/collections/${draftId}`;
-  console.log('getCollectionDetails: Calling API for draft:', draftId);
+  console.log("getCollectionDetails: Calling API for draft:", draftId);
 
   try {
     const response = await apiCall(url);
@@ -494,20 +545,23 @@ export async function getCollectionDetails(draftId: string): Promise<CollectionD
     }
 
     const data = await response.json();
-    console.log('getCollectionDetails: Raw API response:', data);
+    console.log("getCollectionDetails: Raw API response:", data);
 
-    // Validate response structure - check if it has required fields
-    if (!data._id || !data.manifest || !data.config) {
+    // Validate response structure - require id and config. Manifest may be absent for non-manifest collections
+    if (!data._id || !data.config) {
       throw new Error("Invalid response format from collection details API");
     }
 
-    console.log('getCollectionDetails: Successfully parsed response for draft:', draftId);
+    console.log(
+      "getCollectionDetails: Successfully parsed response for draft:",
+      draftId
+    );
 
     // Wrap the response in the expected format
     return {
       success: true,
       draft: data,
-      progress_percentage: data.progress_percentage || "0%"
+      progress_percentage: data.progress_percentage || "0%",
     };
   } catch (error) {
     console.error("Error fetching collection details:", error);
@@ -536,8 +590,8 @@ export async function getCollectionNFTs(
     limit: limit.toString(),
   });
 
-  if (syncStatus) params.append('syncStatus', syncStatus);
-  if (owner) params.append('owner', owner);
+  if (syncStatus) params.append("syncStatus", syncStatus);
+  if (owner) params.append("owner", owner);
 
   const url = `${API_BASE_URL}/nft-sync/collection/${collectionId}/nfts?${params.toString()}`;
 
@@ -563,15 +617,20 @@ export async function getCollectionNFTs(
 }
 
 // Mock data functions for testing when backend is not available
-function getMockMintableCollections(limit = 50, offset = 0): MintableCollectionsResponse {
+function getMockMintableCollections(
+  limit = 50,
+  offset = 0
+): MintableCollectionsResponse {
   const mockDrafts: MintableDraft[] = [
     {
       draft_id: "64f8a1b2c3d4e5f6a7b8c9d0",
       collection_id: "0x1234567890abcdef1234567890abcdef12345678",
       name: "MoonFish",
       desc: "THE LEGENDARY SPLASH",
-      banner_uri: "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
-      banner_image: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
+      banner_uri:
+        "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
+      banner_image:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
       status: "active",
       salePhase: "PUBLIC",
       phaseMode: "schedule",
@@ -579,15 +638,18 @@ function getMockMintableCollections(limit = 50, offset = 0): MintableCollections
       minted: 764,
       remaining: 243,
       progress_percentage: 76,
-      adminAddr: "0x6d2a9e554c8c95c409dc68c5d46eb0bdef3bae901960331074231902a263d327"
+      adminAddr:
+        "0x6d2a9e554c8c95c409dc68c5d46eb0bdef3bae901960331074231902a263d327",
     },
     {
       draft_id: "64f8a1b2c3d4e5f6a7b8c9d1",
       collection_id: "0x2345678901bcdef1234567890abcdef123456789",
       name: "WA1FU",
       desc: "Anime Collection",
-      banner_uri: "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML4/banner.jpg",
-      banner_image: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML4/banner.jpg",
+      banner_uri:
+        "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML4/banner.jpg",
+      banner_image:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML4/banner.jpg",
       status: "active",
       salePhase: "PRESALE",
       phaseMode: "manual",
@@ -595,15 +657,18 @@ function getMockMintableCollections(limit = 50, offset = 0): MintableCollections
       minted: 2,
       remaining: 2,
       progress_percentage: 50,
-      adminAddr: "0x7c32693c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f"
+      adminAddr:
+        "0x7c32693c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
     },
     {
       draft_id: "64f8a1b2c3d4e5f6a7b8c9d2",
       collection_id: "0x3456789012cdef1234567890abcdef1234567890",
       name: "Crazy Beanz",
       desc: "Bean Collection",
-      banner_uri: "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML5/banner.jpg",
-      banner_image: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML5/banner.jpg",
+      banner_uri:
+        "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML5/banner.jpg",
+      banner_image:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML5/banner.jpg",
       status: "active",
       salePhase: "PRESALE",
       phaseMode: "schedule",
@@ -611,15 +676,18 @@ function getMockMintableCollections(limit = 50, offset = 0): MintableCollections
       minted: 325,
       remaining: 3008,
       progress_percentage: 10,
-      adminAddr: "0x8d43793c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f"
+      adminAddr:
+        "0x8d43793c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
     },
     {
       draft_id: "64f8a1b2c3d4e5f6a7b8c9d3",
       collection_id: "0x4567890123def1234567890abcdef1234567890",
       name: "SuiShark",
       desc: "Shark Collection",
-      banner_uri: "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML6/banner.jpg",
-      banner_image: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML6/banner.jpg",
+      banner_uri:
+        "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML6/banner.jpg",
+      banner_image:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML6/banner.jpg",
       status: "active",
       salePhase: "PUBLIC",
       phaseMode: "manual",
@@ -627,15 +695,18 @@ function getMockMintableCollections(limit = 50, offset = 0): MintableCollections
       minted: 1,
       remaining: 0,
       progress_percentage: 100,
-      adminAddr: "0x9e54893c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f"
+      adminAddr:
+        "0x9e54893c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
     },
     {
       draft_id: "64f8a1b2c3d4e5f6a7b8c9d4",
       collection_id: "0x5678901234ef1234567890abcdef1234567890",
       name: "Mandelbrots Sui Homage",
       desc: "Fractal Art Collection",
-      banner_uri: "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML7/banner.jpg",
-      banner_image: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML7/banner.jpg",
+      banner_uri:
+        "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML7/banner.jpg",
+      banner_image:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML7/banner.jpg",
       status: "active",
       salePhase: "PUBLIC",
       phaseMode: "schedule",
@@ -643,15 +714,18 @@ function getMockMintableCollections(limit = 50, offset = 0): MintableCollections
       minted: 1,
       remaining: 0,
       progress_percentage: 100,
-      adminAddr: "0xaf65993c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f"
+      adminAddr:
+        "0xaf65993c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
     },
     {
       draft_id: "64f8a1b2c3d4e5f6a7b8c9d5",
       collection_id: "0x6789012345f1234567890abcdef1234567890",
       name: "Quants",
       desc: "Quantitative Collection",
-      banner_uri: "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML8/banner.jpg",
-      banner_image: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML8/banner.jpg",
+      banner_uri:
+        "ipfs://QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML8/banner.jpg",
+      banner_image:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML8/banner.jpg",
       status: "active",
       salePhase: "PUBLIC",
       phaseMode: "schedule",
@@ -659,8 +733,9 @@ function getMockMintableCollections(limit = 50, offset = 0): MintableCollections
       minted: 1034,
       remaining: 1966,
       progress_percentage: 34,
-      adminAddr: "0xbf76993c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f"
-    }
+      adminAddr:
+        "0xbf76993c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
+    },
   ];
 
   const startIndex = Math.floor(offset / limit) * limit;
@@ -687,7 +762,8 @@ function getMockCollections(limit = 50, offset = 0): CollectionsResponse {
       collection_name: "MoonFish",
       description: "THE LEGENDARY SPLASH",
       uri: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
-      creator_address: "0x6d2a9e554c8c95c409dc68c5d46eb0bdef3bae901960331074231902a263d327",
+      creator_address:
+        "0x6d2a9e554c8c95c409dc68c5d46eb0bdef3bae901960331074231902a263d327",
       max_supply: 1007,
       total_minted_v2: 764,
       last_tx_version: 12345,
@@ -699,7 +775,8 @@ function getMockCollections(limit = 50, offset = 0): CollectionsResponse {
       collection_name: "WA1FU",
       description: "Anime Collection",
       uri: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML4/banner.jpg",
-      creator_address: "0x7c32693c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
+      creator_address:
+        "0x7c32693c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
       max_supply: 4,
       total_minted_v2: 2,
       last_tx_version: 67890,
@@ -711,12 +788,13 @@ function getMockCollections(limit = 50, offset = 0): CollectionsResponse {
       collection_name: "Crazy Beanz",
       description: "Bean Collection",
       uri: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML5/banner.jpg",
-      creator_address: "0x8d43793c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
+      creator_address:
+        "0x8d43793c1300799d49890dacdb926e024198cf0e98fd45dc63d1171857bce34f",
       max_supply: 3333,
       total_minted_v2: 325,
       last_tx_version: 54321,
       is_draft_collection: true,
-    }
+    },
   ];
 
   const startIndex = Math.floor(offset / limit) * limit;
@@ -736,7 +814,9 @@ function getMockCollections(limit = 50, offset = 0): CollectionsResponse {
   };
 }
 
-function getMockCollectionDetails(collectionId: string): CollectionDetailsResponse {
+function getMockCollectionDetails(
+  collectionId: string
+): CollectionDetailsResponse {
   const mockManifest: CollectionManifest[] = [
     {
       name: "Fishing with my Dogs",
@@ -744,8 +824,8 @@ function getMockCollectionDetails(collectionId: string): CollectionDetailsRespon
       attributes: [
         { trait_type: "Background", value: "Ocean" },
         { trait_type: "Fish", value: "Golden" },
-        { trait_type: "Rarity", value: "Legendary" }
-      ]
+        { trait_type: "Rarity", value: "Legendary" },
+      ],
     },
     {
       name: "Fishing in Sui",
@@ -753,8 +833,8 @@ function getMockCollectionDetails(collectionId: string): CollectionDetailsRespon
       attributes: [
         { trait_type: "Background", value: "Sui" },
         { trait_type: "Fish", value: "Blue" },
-        { trait_type: "Rarity", value: "Rare" }
-      ]
+        { trait_type: "Rarity", value: "Rare" },
+      ],
     },
     {
       name: "Everyone Go Fish",
@@ -762,9 +842,9 @@ function getMockCollectionDetails(collectionId: string): CollectionDetailsRespon
       attributes: [
         { trait_type: "Background", value: "Community" },
         { trait_type: "Fish", value: "Red" },
-        { trait_type: "Rarity", value: "Common" }
-      ]
-    }
+        { trait_type: "Rarity", value: "Common" },
+      ],
+    },
   ];
 
   return {
@@ -773,43 +853,43 @@ function getMockCollectionDetails(collectionId: string): CollectionDetailsRespon
       name: "MoonFish",
       desc: "THE LEGENDARY SPLASH",
       collection_id: collectionId,
-      adminAddr: "0x6d2a9e554c8c95c409dc68c5d46eb0bdef3bae901960331074231902a263d327",
+      adminAddr:
+        "0x6d2a9e554c8c95c409dc68c5d46eb0bdef3bae901960331074231902a263d327",
       status: "active",
-      collectionUri: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
-      baseUri: "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/",
+      collectionUri:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/banner.jpg",
+      baseUri:
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/",
       manifest: mockManifest,
       imageUris: [
         "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/nft_0.png",
         "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/nft_1.png",
-        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/nft_2.png"
+        "https://ipfs.io/ipfs/QmBeCMq5sBbH8Uor9gmHaPDFpD9hUjuriee6vYsud6JML3/nft_2.png",
       ],
       imageFileNames: ["nft_0.png", "nft_1.png", "nft_2.png"],
       mintedTokenIndexes: [0, 1], // Đã mint NFT index 0 và 1
       config: {
         supply: {
           max: 1007,
-          perWalletCap: 5
+          perWalletCap: 5,
         },
         pricing: {
           presale: "0.91",
           public: "1.5",
-          currency: "APT"
+          currency: "APT",
         },
         schedule: {
           presaleStart: 1696000000000,
           publicStart: 1696086400000,
-          saleEnd: 1696172800000
+          saleEnd: 1696172800000,
         },
         freezeAfter: true,
         setPhaseManual: false,
-        phaseManual: 0
+        phaseManual: 0,
       },
       createdAt: "2025-09-28T09:00:00.000Z",
-      updatedAt: "2025-09-28T10:30:00.000Z"
+      updatedAt: "2025-09-28T10:30:00.000Z",
     },
-    progress_percentage: "76%"
+    progress_percentage: "76%",
   };
 }
-
-
-

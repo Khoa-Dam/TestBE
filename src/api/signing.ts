@@ -219,6 +219,31 @@ export async function randomMint(
   return res.json();
 }
 
+// Non-manifest mint: single image / non-manifest flows
+export async function mintNonManifest(
+  id: string,
+  payerAddr: string,
+  toAddr?: string,
+  customName?: string,
+  customDescription?: string
+): Promise<RandomMintResult> {
+  const res = await apiCall(
+    `${API_BASE_URL}/collections/${id}/mint-non-manifest`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        payerAddr,
+        toAddr,
+        customName,
+        customDescription,
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function markMinted(id: string, tokenIndex: number) {
   const res = await apiCall(
     `${API_BASE_URL}/collections/${id}/mark-minted/${tokenIndex}`,

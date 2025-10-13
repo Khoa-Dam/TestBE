@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { createCompleteDraft, type Draft } from "./api";
 
 interface CreateCollectionProps {
@@ -8,6 +9,7 @@ interface CreateCollectionProps {
 export default function CreateCollection({
   onDraftCreated,
 }: CreateCollectionProps) {
+  const { account, connected } = useWallet();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     adminAddr: "",
@@ -28,6 +30,13 @@ export default function CreateCollection({
     freezeAfter: false, // Don't freeze by default
   });
 
+  // Sync adminAddr to connected wallet address when available
+  useEffect(() => {
+    if (connected && account?.address) {
+      setFormData((prev) => ({ ...prev, adminAddr: account.address }));
+    }
+  }, [connected, account]);
+
   const [files, setFiles] = useState({
     banner: null as File | null,
     images: [] as File[],
@@ -35,7 +44,9 @@ export default function CreateCollection({
   });
 
   // Collection mode state
-  const [collectionMode, setCollectionMode] = useState<"manual" | "manifest">("manual");
+  const [collectionMode, setCollectionMode] = useState<"manual" | "manifest">(
+    "manual"
+  );
 
   // Manifest preview state
   const [manifestPreview, setManifestPreview] = useState<{
@@ -177,10 +188,15 @@ export default function CreateCollection({
       }
     }
 
-    if (collectionMode === "manual" && (!formData.maxSupply || parseInt(formData.maxSupply) <= 0)) {
+    if (
+      collectionMode === "manual" &&
+      (!formData.maxSupply || parseInt(formData.maxSupply) <= 0)
+    ) {
       alert("❌ Max Supply must be greater than 0 in Manual Mode!");
       return;
     }
+
+    // (No special non-manifest validation — Manual mode covers non-manifest workflows)
 
     setLoading(true);
 
@@ -208,11 +224,13 @@ export default function CreateCollection({
       );
 
       // Supply config - different handling based on mode
+      // Submit collection mode (manual or manifest)
+      submitData.append("collectionMode", collectionMode);
+
       if (collectionMode === "manual") {
         submitData.append("maxSupply", formData.maxSupply);
       } else {
         // In manifest mode, max supply will be calculated from manifest by backend
-        submitData.append("collectionMode", "manifest");
         submitData.append("maxSupply", "0"); // Placeholder, will be overridden by backend
       }
       submitData.append("perWalletCap", formData.perWalletCap);
@@ -262,15 +280,18 @@ export default function CreateCollection({
 
       console.log("🎛️ Phase Management values being sent:");
       console.log(
-        `   setPhaseManual: ${formData.setPhaseManual
+        `   setPhaseManual: ${
+          formData.setPhaseManual
         } (${typeof formData.setPhaseManual})`
       );
       console.log(
-        `   phaseManual: ${formData.phaseManual
+        `   phaseManual: ${
+          formData.phaseManual
         } (${typeof formData.phaseManual})`
       );
       console.log(
-        `   freezeAfter: ${formData.freezeAfter
+        `   freezeAfter: ${
+          formData.freezeAfter
         } (${typeof formData.freezeAfter})`
       );
 
@@ -319,27 +340,41 @@ export default function CreateCollection({
           <h3>🎯 Collection Mode</h3>
           <div style={{ display: "grid", gap: 12 }}>
             <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: "bold",
+                }}
+              >
                 Choose Collection Type:
               </label>
               <div style={{ display: "flex", gap: 16 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
                   <input
                     type="radio"
                     name="collectionMode"
                     value="manual"
                     checked={collectionMode === "manual"}
-                    onChange={(e) => setCollectionMode(e.target.value as "manual" | "manifest")}
+                    onChange={(e) =>
+                      setCollectionMode(e.target.value as "manual" | "manifest")
+                    }
                   />
                   📝 Manual Supply (Enter max supply manually)
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
                   <input
                     type="radio"
                     name="collectionMode"
                     value="manifest"
                     checked={collectionMode === "manifest"}
-                    onChange={(e) => setCollectionMode(e.target.value as "manual" | "manifest")}
+                    onChange={(e) =>
+                      setCollectionMode(e.target.value as "manual" | "manifest")
+                    }
                   />
                   📋 Manifest Mode (Max supply calculated from manifest)
                 </label>
@@ -347,17 +382,39 @@ export default function CreateCollection({
             </div>
 
             {collectionMode === "manual" && (
-              <div style={{ padding: 12, background: "#e7f3ff", borderRadius: 6, borderLeft: "4px solid #007bff" }}>
-                <strong>📝 Manual Mode:</strong> You will enter the max supply manually. Make sure your NFT images match this number.
+              <div
+                style={{
+                  padding: 12,
+                  background: "#e7f3ff",
+                  borderRadius: 6,
+                  borderLeft: "4px solid #007bff",
+                }}
+              >
+                <strong>📝 Manual Mode:</strong> You will enter the max supply
+                manually. Make sure your NFT images match this number.
               </div>
             )}
 
             {collectionMode === "manifest" && (
-              <div style={{ padding: 12, background: "#fff3cd", borderRadius: 6, borderLeft: "4px solid #ffc107" }}>
-                <strong>📋 Manifest Mode:</strong> Max supply will be automatically calculated from your manifest.json file.
+              <div
+                style={{
+                  padding: 12,
+                  background: "#fff3cd",
+                  borderRadius: 6,
+                  borderLeft: "4px solid #ffc107",
+                }}
+              >
+                <strong>📋 Manifest Mode:</strong> Max supply will be
+                automatically calculated from your manifest.json file.
                 {files.manifest && (
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: "0.9em", color: "#856404", marginBottom: 8 }}>
+                    <div
+                      style={{
+                        fontSize: "0.9em",
+                        color: "#856404",
+                        marginBottom: 8,
+                      }}
+                    >
                       ✅ Manifest uploaded: {files.manifest.name}
                     </div>
                     {manifestPreview && (
@@ -380,12 +437,20 @@ export default function CreateCollection({
                   </div>
                 )}
                 {!files.manifest && (
-                  <div style={{ fontSize: "0.9em", color: "#856404", marginTop: 8 }}>
+                  <div
+                    style={{
+                      fontSize: "0.9em",
+                      color: "#856404",
+                      marginTop: 8,
+                    }}
+                  >
                     ⚠️ Please upload a manifest.json file to see the NFT count
                   </div>
                 )}
               </div>
             )}
+
+            {/* No special Non-Manifest panel - Manual mode covers non-manifest workflows */}
           </div>
         </section>
 
@@ -395,13 +460,46 @@ export default function CreateCollection({
         >
           <h3>📝 Basic Information</h3>
           <div style={{ display: "grid", gap: 8 }}>
-            <input
-              name="adminAddr"
-              placeholder="Admin Address (0x...)"
-              value={formData.adminAddr}
-              onChange={handleInputChange}
-              required
-            />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                name="adminAddr"
+                placeholder="Admin Address (0x...)"
+                value={formData.adminAddr}
+                onChange={handleInputChange}
+                required
+                readOnly={connected}
+                style={connected ? { background: "#f8f9fa" } : {}}
+              />
+              {!connected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Try to set adminAddr from wallet if available
+                    if (account?.address) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        adminAddr: account.address,
+                      }));
+                    } else {
+                      alert("No wallet connected");
+                    }
+                  }}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #ccc",
+                    background: "#fff",
+                  }}
+                >
+                  Use Connected Wallet
+                </button>
+              )}
+            </div>
+            {connected && account?.address && (
+              <div style={{ fontSize: "12px", color: "#6c757d" }}>
+                Using connected wallet: {account.address}
+              </div>
+            )}
             <input
               name="name"
               placeholder="Collection Name"
@@ -425,14 +523,18 @@ export default function CreateCollection({
           style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
         >
           <h3>💰 Supply & Pricing</h3>
-          <div
-            style={{ display: "grid", gap: 12 }}
-          >
+          <div style={{ display: "grid", gap: 12 }}>
             {/* Max Supply - Conditional based on mode */}
             <div style={{ display: "grid", gap: 8 }}>
               {collectionMode === "manual" ? (
                 <div>
-                  <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: 4,
+                      fontWeight: "bold",
+                    }}
+                  >
                     Max Supply: *
                   </label>
                   <input
@@ -442,20 +544,45 @@ export default function CreateCollection({
                     value={formData.maxSupply}
                     onChange={handleInputChange}
                     required
-                    style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                    style={{
+                      padding: 8,
+                      border: "1px solid #ccc",
+                      borderRadius: 4,
+                    }}
                   />
                   <small style={{ color: "#666", fontSize: "0.85em" }}>
                     💡 Enter the total number of NFTs you want to create
                   </small>
                 </div>
               ) : (
-                <div style={{ padding: 12, background: "#f8f9fa", borderRadius: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#f8f9fa",
+                    borderRadius: 6,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 8,
+                    }}
+                  >
                     <strong>📊 Max Supply (Auto-calculated)</strong>
                   </div>
-                  <div style={{ fontSize: "0.9em", color: "#666", marginBottom: 8 }}>
+                  <div
+                    style={{
+                      fontSize: "0.9em",
+                      color: "#666",
+                      marginBottom: 8,
+                    }}
+                  >
                     {files.manifest ? (
-                      <span>✅ Will be calculated from manifest.json when submitted</span>
+                      <span>
+                        ✅ Will be calculated from manifest.json when submitted
+                      </span>
                     ) : (
                       <span>⚠️ Please upload a manifest.json file first</span>
                     )}
@@ -471,7 +598,7 @@ export default function CreateCollection({
                       border: "1px solid #ccc",
                       borderRadius: 4,
                       color: "#6c757d",
-                      width: "100%"
+                      width: "100%",
                     }}
                   />
                 </div>
@@ -480,10 +607,20 @@ export default function CreateCollection({
 
             {/* Other pricing fields */}
             <div
-              style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}
+              style={{
+                display: "grid",
+                gap: 8,
+                gridTemplateColumns: "1fr 1fr",
+              }}
             >
               <div>
-                <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: 4,
+                    fontWeight: "bold",
+                  }}
+                >
                   Per Wallet Cap:
                 </label>
                 <input
@@ -492,11 +629,21 @@ export default function CreateCollection({
                   type="number"
                   value={formData.perWalletCap}
                   onChange={handleInputChange}
-                  style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                  style={{
+                    padding: 8,
+                    border: "1px solid #ccc",
+                    borderRadius: 4,
+                  }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: 4,
+                    fontWeight: "bold",
+                  }}
+                >
                   Presale Price (APT):
                 </label>
                 <input
@@ -506,11 +653,21 @@ export default function CreateCollection({
                   step="0.00000001"
                   value={formData.presalePrice}
                   onChange={handleInputChange}
-                  style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                  style={{
+                    padding: 8,
+                    border: "1px solid #ccc",
+                    borderRadius: 4,
+                  }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: 4,
+                    fontWeight: "bold",
+                  }}
+                >
                   Public Price (APT):
                 </label>
                 <input
@@ -520,7 +677,11 @@ export default function CreateCollection({
                   step="0.00000001"
                   value={formData.publicPrice}
                   onChange={handleInputChange}
-                  style={{ padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                  style={{
+                    padding: 8,
+                    border: "1px solid #ccc",
+                    borderRadius: 4,
+                  }}
                 />
               </div>
             </div>
@@ -741,14 +902,16 @@ export default function CreateCollection({
               />
               <small>Selected: {files.images.length} files</small>
             </label>
-            <label>
-              Manifest JSON:
-              <input
-                type="file"
-                accept=".json"
-                onChange={(e) => handleFileChange(e, "manifest")}
-              />
-            </label>
+            {collectionMode === "manifest" && (
+              <label>
+                Manifest JSON:
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => handleFileChange(e, "manifest")}
+                />
+              </label>
+            )}
           </div>
         </section>
 
@@ -768,9 +931,8 @@ export default function CreateCollection({
           {loading
             ? "⏳ Creating Draft..."
             : collectionMode === "manifest"
-              ? "🚀 Create Manifest Collection"
-              : "🚀 Create Manual Collection"
-          }
+            ? "🚀 Create Manifest Collection"
+            : "🚀 Create Manual Collection"}
         </button>
       </form>
     </div>
