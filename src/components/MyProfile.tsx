@@ -12,7 +12,8 @@ interface MyProfileProps {
 }
 
 export default function MyProfile({ onBack }: MyProfileProps) {
-  const { account, connected, signMessage, signAndSubmitTransaction } = useWallet();
+  const { account, connected, signMessage, signAndSubmitTransaction } =
+    useWallet();
   const { nfts, loading, error, refetch } = useUserNfts(1, 12); // Load 12 NFTs per page
 
   // Local state for cancel listing operations
@@ -47,9 +48,12 @@ export default function MyProfile({ onBack }: MyProfileProps) {
     if (!nft.history || !Array.isArray(nft.history)) {
       // No history available; rely on top-level fields if present
       if (nft.is_listed && nft.listed_price != null) {
-        const price = typeof nft.listed_price === 'string' ? parseFloat(nft.listed_price) : nft.listed_price;
+        const price =
+          typeof nft.listed_price === "string"
+            ? parseFloat(nft.listed_price)
+            : nft.listed_price;
         return {
-          transaction_type: 'list',
+          transaction_type: "list",
           price,
           timestamp: nft.listed_at,
           from_address: nft.listed_by,
@@ -60,9 +64,12 @@ export default function MyProfile({ onBack }: MyProfileProps) {
 
     // If top-level listed flags indicate listed, use them directly
     if (nft.is_listed && nft.listed_price != null) {
-      const price = typeof nft.listed_price === 'string' ? parseFloat(nft.listed_price) : nft.listed_price;
+      const price =
+        typeof nft.listed_price === "string"
+          ? parseFloat(nft.listed_price)
+          : nft.listed_price;
       return {
-        transaction_type: 'list',
+        transaction_type: "list",
         price,
         timestamp: nft.listed_at,
         from_address: nft.listed_by,
@@ -71,8 +78,10 @@ export default function MyProfile({ onBack }: MyProfileProps) {
 
     // Otherwise fallback to history: Find all listing-related transactions (list, relist, cancel, cancel_list)
     const allListingTransactions = nft.history.filter((h: any) => {
-      const t = (h.transaction_type || '').toLowerCase();
-      return t === 'list' || t === 'relist' || t === 'cancel' || t === 'cancel_list';
+      const t = (h.transaction_type || "").toLowerCase();
+      return (
+        t === "list" || t === "relist" || t === "cancel" || t === "cancel_list"
+      );
     });
 
     if (allListingTransactions.length === 0) {
@@ -80,22 +89,26 @@ export default function MyProfile({ onBack }: MyProfileProps) {
     }
 
     // Sort by timestamp (newest first)
-    allListingTransactions.sort((a: any, b: any) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    allListingTransactions.sort(
+      (a: any, b: any) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
     const latestTransaction = allListingTransactions[0];
 
     // If latest transaction is cancel_list, NFT is not listed
-    const latestType = (latestTransaction.transaction_type || '').toLowerCase();
-    if (latestType === 'cancel' || latestType === 'cancel_list') {
-      console.log('🔍 NFT not listed (cancelled):', nft._id);
+    const latestType = (latestTransaction.transaction_type || "").toLowerCase();
+    if (latestType === "cancel" || latestType === "cancel_list") {
+      console.log("🔍 NFT not listed (cancelled):", nft._id);
       return null;
     }
 
     // If latest transaction is list or relist, NFT is currently listed
-    const normalizedPrice = typeof latestTransaction.price === 'string' ? parseFloat(latestTransaction.price) : latestTransaction.price;
-    console.log('🔍 Current listing for NFT:', nft._id, {
+    const normalizedPrice =
+      typeof latestTransaction.price === "string"
+        ? parseFloat(latestTransaction.price)
+        : latestTransaction.price;
+    console.log("🔍 Current listing for NFT:", nft._id, {
       type: latestTransaction.transaction_type,
       price: normalizedPrice,
       timestamp: latestTransaction.timestamp,
@@ -115,7 +128,11 @@ export default function MyProfile({ onBack }: MyProfileProps) {
   };
 
   const handleCancelListing = async (nft: any) => {
-    if (!confirm(`Are you sure you want to cancel the listing for "${nft.token_name}"?`)) {
+    if (
+      !confirm(
+        `Are you sure you want to cancel the listing for "${nft.token_name}"?`
+      )
+    ) {
       return;
     }
 
@@ -139,7 +156,9 @@ export default function MyProfile({ onBack }: MyProfileProps) {
       }
 
       if (!apiResponse.transactionMeta || !apiResponse.trackingId) {
-        throw new Error("Invalid response from server - missing transactionMeta or trackingId");
+        throw new Error(
+          "Invalid response from server - missing transactionMeta or trackingId"
+        );
       }
 
       const { transactionMeta, trackingId, instructions } = apiResponse;
@@ -152,18 +171,37 @@ export default function MyProfile({ onBack }: MyProfileProps) {
       }
 
       console.log("🚀 Calling signAndSubmitTransaction for cancel listing");
-      console.log("🔍 Raw transaction from backend:", transactionMeta.transaction);
+      console.log(
+        "🔍 Raw transaction from backend:",
+        transactionMeta.transaction
+      );
 
       // Normalize backend transaction into wallet adapter format
       const rawTx: any = transactionMeta.transaction || {};
       const rawPayload: any = rawTx.payload || rawTx;
 
-      const normalizedFunction = rawPayload.function || rawPayload.functionId || rawTx.function || rawTx.functionId;
-      const normalizedTypeArgs = rawPayload.typeArguments || rawPayload.type_arguments || rawTx.typeArguments || rawTx.type_arguments || [];
-      const normalizedArgs = rawPayload.functionArguments || rawPayload.arguments || rawTx.functionArguments || rawTx.arguments || [];
+      const normalizedFunction =
+        rawPayload.function ||
+        rawPayload.functionId ||
+        rawTx.function ||
+        rawTx.functionId;
+      const normalizedTypeArgs =
+        rawPayload.typeArguments ||
+        rawPayload.type_arguments ||
+        rawTx.typeArguments ||
+        rawTx.type_arguments ||
+        [];
+      const normalizedArgs =
+        rawPayload.functionArguments ||
+        rawPayload.arguments ||
+        rawTx.functionArguments ||
+        rawTx.arguments ||
+        [];
 
       if (!normalizedFunction) {
-        throw new Error("Invalid transaction data - missing function identifier");
+        throw new Error(
+          "Invalid transaction data - missing function identifier"
+        );
       }
 
       const cancelTxForWallet = {
@@ -200,14 +238,20 @@ export default function MyProfile({ onBack }: MyProfileProps) {
       console.log("✅ NFT data refreshed");
 
       // Step 4: Show success message to user
-      alert("✅ NFT listing cancelled successfully!\n\nThe NFT has been removed from the marketplace and returned to your wallet.");
-
+      alert(
+        "✅ NFT listing cancelled successfully!\n\nThe NFT has been removed from the marketplace and returned to your wallet."
+      );
     } catch (err: any) {
       console.error("❌ Cancel listing error:", err);
 
-      if (err.message?.includes("User rejected") || err.message?.includes("cancelled")) {
+      if (
+        err.message?.includes("User rejected") ||
+        err.message?.includes("cancelled")
+      ) {
         setCancelError("Transaction cancelled by user");
-        alert("❌ Cancel Listing Cancelled\n\nYou cancelled the transaction. The NFT listing remains active.");
+        alert(
+          "❌ Cancel Listing Cancelled\n\nYou cancelled the transaction. The NFT listing remains active."
+        );
       } else if (err.message?.includes("NFT not found")) {
         setCancelError("NFT không tồn tại hoặc không thể truy cập");
       } else if (err.message?.includes("not the owner")) {
@@ -216,7 +260,10 @@ export default function MyProfile({ onBack }: MyProfileProps) {
         setCancelError("Hệ thống escrow chưa được cấu hình");
       } else {
         setCancelError(err.message || "Không thể hủy listing NFT");
-        alert("❌ Cancel Listing Failed\n\n" + (err.message || "An error occurred while cancelling the listing."));
+        alert(
+          "❌ Cancel Listing Failed\n\n" +
+            (err.message || "An error occurred while cancelling the listing.")
+        );
       }
     } finally {
       setCancelLoading(false);
@@ -319,8 +366,8 @@ export default function MyProfile({ onBack }: MyProfileProps) {
         </h2>
 
         {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+          <div style={{ padding: "40px", textAlign: "center" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
             <h2>Loading NFTs...</h2>
             <p>Please wait while we fetch your NFTs from the blockchain.</p>
           </div>
@@ -417,8 +464,12 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                         <strong>Total NFTs:</strong> {totalCount}
                       </div>
                       {(() => {
-                        const listedNfts = nftList.filter((nft: any) => !!getCurrentListing(nft));
-                        const unlistedNfts = nftList.filter((nft: any) => !getCurrentListing(nft));
+                        const listedNfts = nftList.filter(
+                          (nft: any) => !!getCurrentListing(nft)
+                        );
+                        const unlistedNfts = nftList.filter(
+                          (nft: any) => !getCurrentListing(nft)
+                        );
 
                         return (
                           <>
@@ -426,13 +477,20 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                               <strong>💰 Listed:</strong> {listedNfts.length}
                             </div>
                             <div>
-                              <strong>📦 Unlisted:</strong> {unlistedNfts.length}
+                              <strong>📦 Unlisted:</strong>{" "}
+                              {unlistedNfts.length}
                             </div>
                           </>
                         );
                       })()}
                     </div>
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        alignItems: "center",
+                      }}
+                    >
                       <div>
                         <strong>Page:</strong> {currentPage} of {totalPages}
                       </div>
@@ -448,7 +506,8 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                             border: "none",
                             padding: "8px 15px",
                             borderRadius: "5px",
-                            cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                            cursor:
+                              currentPage <= 1 ? "not-allowed" : "pointer",
                             opacity: currentPage <= 1 ? 0.5 : 1,
                           }}
                         >
@@ -500,54 +559,66 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                         }}
                       >
                         <div
-                              style={{
-                                height: "200px",
-                                background: (() => {
-                                  // Prefer nft.image, fallback to nft.token_uri
-                                  const raw = nft.image || nft.token_uri;
-                                  if (!raw) return "#f0f0f0";
+                          style={{
+                            height: "200px",
+                            background: (() => {
+                              // Prefer nft.image, fallback to nft.token_uri
+                              const raw = nft.image || nft.token_uri;
+                              if (!raw) return "#f0f0f0";
 
-                                  try {
-                                    let url = String(raw);
+                              try {
+                                let url = String(raw);
 
-                                    // Some token_uri values may be ipfs://... or contain spaces/commas
-                                    // Normalize ipfs:// to gateway, and encode spaces
-                                    if (url.startsWith("ipfs://")) {
-                                      url = url.replace(/^ipfs:\/\//, "https://ipfs.io/ipfs/");
-                                    }
+                                // Some token_uri values may be ipfs://... or contain spaces/commas
+                                // Normalize ipfs:// to gateway, and encode spaces
+                                if (url.startsWith("ipfs://")) {
+                                  url = url.replace(
+                                    /^ipfs:\/\//,
+                                    "https://ipfs.io/ipfs/"
+                                  );
+                                }
 
-                                    // Trim and encode only the path portion to preserve query/hash
-                                    const parts = url.split("/");
-                                    // Encode segments that contain spaces or other unsafe chars
-                                    for (let i = 3; i < parts.length; i++) {
-                                      parts[i] = encodeURIComponent(decodeURIComponent(parts[i] || ""));
-                                    }
-                                    const encoded = parts.join("/");
+                                // Trim and encode only the path portion to preserve query/hash
+                                const parts = url.split("/");
+                                // Encode segments that contain spaces or other unsafe chars
+                                for (let i = 3; i < parts.length; i++) {
+                                  parts[i] = encodeURIComponent(
+                                    decodeURIComponent(parts[i] || "")
+                                  );
+                                }
+                                const encoded = parts.join("/");
 
-                                    // Return quoted url(...) so CSS handles spaces
-                                    return `url("${encoded}")`;
-                                  } catch (e) {
-                                    console.debug("MyProfile: failed to normalize image url for", nft._id, raw, e);
-                                    return "#f0f0f0";
-                                  }
-                                })(),
-                                backgroundSize: "cover",
-                                backgroundPosition: "center",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#666",
-                                fontSize: "14px",
-                              }}
-                            >
-                              {nft.image || nft.token_uri ? "" : "🖼️ No Image"}
-                            </div>
+                                // Return quoted url(...) so CSS handles spaces
+                                return `url("${encoded}")`;
+                              } catch (e) {
+                                console.debug(
+                                  "MyProfile: failed to normalize image url for",
+                                  nft._id,
+                                  raw,
+                                  e
+                                );
+                                return "#f0f0f0";
+                              }
+                            })(),
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#666",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {nft.image || nft.token_uri ? "" : "🖼️ No Image"}
+                        </div>
                         <div style={{ padding: "15px" }}>
                           <h4 style={{ margin: "0 0 4px 0", fontSize: "16px" }}>
                             {nft.name || nft.token_name || `NFT #${index + 1}`}
                           </h4>
                           {/* Collection Name */}
-                          {(nft.collection_name || nft.collection?.name || nft.collection_title) && (
+                          {(nft.collection_name ||
+                            nft.collection?.name ||
+                            nft.collection_title) && (
                             <div
                               style={{
                                 margin: "0 0 8px 0",
@@ -558,9 +629,15 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                 gap: "6px",
                               }}
                             >
-                              <span style={{ fontWeight: 600, color: "#495057" }}>Collection:</span>
+                              <span
+                                style={{ fontWeight: 600, color: "#495057" }}
+                              >
+                                Collection:
+                              </span>
                               <span>
-                                {nft.collection_name || nft.collection?.name || nft.collection_title}
+                                {nft.collection_name ||
+                                  nft.collection?.name ||
+                                  nft.collection_title}
                               </span>
                             </div>
                           )}
@@ -608,11 +685,11 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                               const currentListing = getCurrentListing(nft);
 
                               if (currentListing) {
-                                console.log('💰 Displaying current listing:', {
+                                console.log("💰 Displaying current listing:", {
                                   nftId: nft._id,
                                   type: currentListing.transaction_type,
                                   price: currentListing.price,
-                                  timestamp: currentListing.timestamp
+                                  timestamp: currentListing.timestamp,
                                 });
 
                                 return (
@@ -626,8 +703,18 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                     }}
                                   >
                                     💰{" "}
-                                    <span style={{ color: "#e65100", fontWeight: "bold" }}>
-                                      {currentListing.transaction_type === 'list' ? 'Listed' : 'Relisted'}: {currentListing.price?.toLocaleString()} APT
+                                    <span
+                                      style={{
+                                        color: "#e65100",
+                                        fontWeight: "bold",
+                                      }}
+                                    >
+                                      {currentListing.transaction_type ===
+                                      "list"
+                                        ? "Listed"
+                                        : "Relisted"}
+                                      : {currentListing.price?.toLocaleString()}{" "}
+                                      APT
                                     </span>
                                   </div>
                                 );
@@ -661,7 +748,13 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                           )}
 
                           {/* Action Buttons */}
-                          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "8px",
+                              marginTop: "10px",
+                            }}
+                          >
                             {(() => {
                               const currentListing = getCurrentListing(nft);
                               const isListed = !!currentListing;
@@ -673,7 +766,9 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                     style={{
                                       flex: 1,
                                       padding: "8px 12px",
-                                      background: isListed ? "#ff9800" : "#667eea",
+                                      background: isListed
+                                        ? "#ff9800"
+                                        : "#667eea",
                                       color: "white",
                                       border: "none",
                                       borderRadius: "5px",
@@ -682,13 +777,17 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                       transition: "background 0.2s",
                                     }}
                                     onMouseOver={(e) => {
-                                      e.currentTarget.style.background = isListed ? "#f57c00" : "#5a6fd8";
+                                      e.currentTarget.style.background =
+                                        isListed ? "#f57c00" : "#5a6fd8";
                                     }}
                                     onMouseOut={(e) => {
-                                      e.currentTarget.style.background = isListed ? "#ff9800" : "#667eea";
+                                      e.currentTarget.style.background =
+                                        isListed ? "#ff9800" : "#667eea";
                                     }}
                                   >
-                                    {isListed ? "🔄 Update Price" : "📈 List for Sale"}
+                                    {isListed
+                                      ? "🔄 Update Price"
+                                      : "📈 List for Sale"}
                                   </button>
 
                                   {isListed && (
@@ -697,22 +796,28 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                       disabled={cancelLoading}
                                       style={{
                                         padding: "8px 12px",
-                                        background: cancelLoading ? "#ccc" : "#dc3545",
+                                        background: cancelLoading
+                                          ? "#ccc"
+                                          : "#dc3545",
                                         color: "white",
                                         border: "none",
                                         borderRadius: "5px",
-                                        cursor: cancelLoading ? "not-allowed" : "pointer",
+                                        cursor: cancelLoading
+                                          ? "not-allowed"
+                                          : "pointer",
                                         fontSize: "12px",
                                         transition: "background 0.2s",
                                       }}
                                       onMouseOver={(e) => {
                                         if (!cancelLoading) {
-                                          e.currentTarget.style.background = "#c82333";
+                                          e.currentTarget.style.background =
+                                            "#c82333";
                                         }
                                       }}
                                       onMouseOut={(e) => {
                                         if (!cancelLoading) {
-                                          e.currentTarget.style.background = "#dc3545";
+                                          e.currentTarget.style.background =
+                                            "#dc3545";
                                         }
                                       }}
                                       title="Cancel this NFT listing"
@@ -736,10 +841,12 @@ export default function MyProfile({ onBack }: MyProfileProps) {
                                         transition: "background 0.2s",
                                       }}
                                       onMouseOver={(e) => {
-                                        e.currentTarget.style.background = "#218838";
+                                        e.currentTarget.style.background =
+                                          "#218838";
                                       }}
                                       onMouseOut={(e) => {
-                                        e.currentTarget.style.background = "#28a745";
+                                        e.currentTarget.style.background =
+                                          "#28a745";
                                       }}
                                       title="Accept bid for this NFT"
                                     >
@@ -808,7 +915,11 @@ export default function MyProfile({ onBack }: MyProfileProps) {
         isOpen={isListingModalOpen}
         onClose={handleCloseListingModal}
         onSuccess={handleListingSuccess}
-        currentListing={selectedNftForListing ? getCurrentListing(selectedNftForListing) : null}
+        currentListing={
+          selectedNftForListing
+            ? getCurrentListing(selectedNftForListing)
+            : null
+        }
         signMessage={signMessage}
         walletAddress={account?.address || ""}
       />
